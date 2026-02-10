@@ -167,7 +167,8 @@ function showIntroScene(n){
   // Scene 2: 잠깐 보여주고 Scene 3로 자동
   if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer = null; }
   if(n === 2){
-    introAutoTimer = setTimeout(()=>showIntroScene(3), 1200);
+    // 성 내부 장면은 너무 빠르면 어색해서 여유를 둠
+    introAutoTimer = setTimeout(()=>showIntroScene(3), 2800);
   }
 }
 
@@ -175,8 +176,9 @@ function runSlimeDialog(){
   if(!$slimeDialog) return;
   $studyStartBtn.classList.add("hidden");
   $slimeDialog.textContent = "이 성을 올라가려면 나를 이겨야해";
-  setTimeout(()=>{ $slimeDialog.textContent = "나를 이기기 위해서는 공부밖에 방법이 없어"; }, 1600);
-  setTimeout(()=>{ $studyStartBtn.classList.remove("hidden"); }, 3200);
+  // 대사 템포를 조금 더 느리게
+  setTimeout(()=>{ $slimeDialog.textContent = "나를 이기기 위해서는 공부밖에 방법이 없어"; }, 2400);
+  setTimeout(()=>{ $studyStartBtn.classList.remove("hidden"); }, 5200);
 }
 
 function enterGame(){
@@ -201,14 +203,13 @@ $studyStartBtn?.addEventListener("click", ()=>{
   enterGame();
 });
 
-// If user opens directly with #game, skip intro
+// 기본은 항상 인트로부터 시작 (GitHub Pages에서 #game가 남아있어도 인트로가 안 건너뛰게)
+// 필요하면 나중에 "skipIntro=1" 같은 옵션으로만 스킵하도록 확장 가능
 if(location.hash === "#game"){
-  $intro.classList.add("hidden");
-  $game.classList.remove("hidden");
-  startTowerAnim();
-}else{
-  showIntroScene(1);
+  // 해시가 남아있어서 인트로가 안 보이는 문제 방지
+  history.replaceState(null, "", location.pathname + location.search);
 }
+showIntroScene(1);
 
 // ---------- tower animation (JS)
 let stairsAnimRaf = null;
