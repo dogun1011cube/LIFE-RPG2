@@ -1,39 +1,63 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>보상 시간 종료</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>차단됨 - LIFE RPG</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="screen" style="display:grid; place-items:center; padding:18px;">
-    <div class="card" style="max-width:760px; width:100%;">
+  <div class="game" style="display:flex; align-items:center; justify-content:center; min-height:100vh; padding:16px;">
+    <div class="card" style="max-width:720px; width:100%;">
       <div class="cardTitle">⛔ 보상 시간이 끝났어</div>
-      <p class="small" style="line-height:1.6;">
-        상점에서 구매한 이용 시간이 만료되었어.<br/>
-        다시 이용하려면 게임으로 돌아가서 골드를 사용해 구매해줘.
-      </p>
-      <div class="row" style="margin-top:12px;">
-        <button class="btn primary" id="backBtn">게임으로 돌아가기</button>
-        <button class="btn ghost" id="clearBtn">차단 해제(보상 상태 초기화)</button>
+      <div class="note" style="font-size:14px; line-height:1.6">
+        제한 시간이 만료되어 이 페이지로 이동했어.<br/>
+        다시 게임으로 돌아가서 공부를 이어가자.
       </div>
-      <div class="miniNote">
-        ※ 브라우저 보안 때문에 “다른 탭 강제 종료”는 불가하지만,
-        게임 탭은 만료 즉시 이 페이지로 이동하도록 되어 있어.
+      <div class="row" style="margin-top:14px">
+        <button id="backBtn" class="btn primary" type="button">게임으로 돌아가기</button>
+        <button id="resetBtn" class="btn ghost" type="button">차단 해제(테스트)</button>
       </div>
+      <div class="note" id="msg"></div>
     </div>
   </div>
 
-  <script>
-    const RETURN_URL = "./index.html";
-    const KEY = "lifeRpg_reward_v1";
-    document.getElementById("backBtn").onclick = () => location.href = RETURN_URL;
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(KEY);
-      alert("보상 상태를 초기화했어. 게임으로 돌아갈게.");
-      location.href = RETURN_URL;
-    };
-  </script>
+<script>
+  const KEY = "lifeRpg_rewardBlock_v1";
+  const msg = document.getElementById("msg");
+  function isBlocked(){
+    try{
+      const o = JSON.parse(localStorage.getItem(KEY) || "null");
+      if(!o) return false;
+      return Date.now() < o.until;
+    }catch{ return false; }
+  }
+  function leftMs(){
+    try{
+      const o = JSON.parse(localStorage.getItem(KEY) || "null");
+      if(!o) return 0;
+      return Math.max(0, o.until - Date.now());
+    }catch{ return 0; }
+  }
+  function render(){
+    if(isBlocked()){
+      const s = Math.ceil(leftMs()/1000);
+      msg.textContent = "남은 차단 시간: " + s + "초";
+    }else{
+      msg.textContent = "현재는 차단 상태가 아니야. 게임으로 돌아갈 수 있어.";
+    }
+  }
+  setInterval(render, 500);
+  render();
+
+  document.getElementById("backBtn").onclick = () => {
+    location.href = "./index.html#game";
+  };
+  document.getElementById("resetBtn").onclick = () => {
+    localStorage.removeItem(KEY);
+    render();
+    alert("차단 상태를 해제했어(테스트용).");
+  };
+</script>
 </body>
 </html>
