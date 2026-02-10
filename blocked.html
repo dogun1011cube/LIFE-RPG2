@@ -1,22 +1,39 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>잠금</title>
-  <style>
-    body{margin:0;background:#0b0f1e;color:#e9ecff;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-    .card{max-width:620px;width:100%;background:#111832;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:18px}
-    h1{margin:0 0 8px 0;font-size:18px}
-    p{opacity:.8;line-height:1.5}
-    a,button{display:inline-block;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:#0f1426;color:#e9ecff;text-decoration:none;font-weight:1000;cursor:pointer}
-  </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>보상 시간 종료</title>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <div class="card">
-    <h1>⛔ 보상 시간 종료</h1>
-    <p>보상 시간이 끝났어. 게임으로 돌아가서 다음 기록을 이어가자.</p>
-    <a href="index.html">게임으로 돌아가기</a>
+  <div class="screen" style="display:grid; place-items:center; padding:18px;">
+    <div class="card" style="max-width:760px; width:100%;">
+      <div class="cardTitle">⛔ 보상 시간이 끝났어</div>
+      <p class="small" style="line-height:1.6;">
+        상점에서 구매한 이용 시간이 만료되었어.<br/>
+        다시 이용하려면 게임으로 돌아가서 골드를 사용해 구매해줘.
+      </p>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn primary" id="backBtn">게임으로 돌아가기</button>
+        <button class="btn ghost" id="clearBtn">차단 해제(보상 상태 초기화)</button>
+      </div>
+      <div class="miniNote">
+        ※ 브라우저 보안 때문에 “다른 탭 강제 종료”는 불가하지만,
+        게임 탭은 만료 즉시 이 페이지로 이동하도록 되어 있어.
+      </div>
+    </div>
   </div>
+
+  <script>
+    const RETURN_URL = "./index.html";
+    const KEY = "lifeRpg_reward_v1";
+    document.getElementById("backBtn").onclick = () => location.href = RETURN_URL;
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(KEY);
+      alert("보상 상태를 초기화했어. 게임으로 돌아갈게.");
+      location.href = RETURN_URL;
+    };
+  </script>
 </body>
 </html>
