@@ -31,6 +31,7 @@ const $towerBarFill = document.getElementById("towerBarFill");
 const $toNextFloor = document.getElementById("toNextFloor");
 
 const $towerStairs = document.getElementById("towerStairs");
+const $bgStairs = document.getElementById("bgStairs");
 
 const $subjectSelect = document.getElementById("subjectSelect");
 const $addSubjectOpenBtn = document.getElementById("addSubjectOpenBtn");
@@ -175,10 +176,12 @@ function showIntroScene(n){
 function runSlimeDialog(){
   if(!$slimeDialog) return;
   $studyStartBtn.classList.add("hidden");
-  $slimeDialog.textContent = "이 성을 올라가려면 나를 이겨야해";
-  // 대사 템포를 조금 더 느리게
-  setTimeout(()=>{ $slimeDialog.textContent = "나를 이기기 위해서는 공부밖에 방법이 없어"; }, 2400);
-  setTimeout(()=>{ $studyStartBtn.classList.remove("hidden"); }, 5200);
+
+  // 요청 대사 3단계
+  $slimeDialog.textContent = "이 성을 올라가기 위해서는 반드시 나를 이겨야만 한닷!!!";
+  setTimeout(()=>{ $slimeDialog.textContent = "나를 이길 수 있는 방법은 단 하나밖에 없지 (후훗)"; }, 2300);
+  setTimeout(()=>{ $slimeDialog.textContent = "그것은 바로 공부닷!!!"; }, 5000);
+  setTimeout(()=>{ $studyStartBtn.classList.remove("hidden"); }, 7000);
 }
 
 function enterGame(){
@@ -215,7 +218,7 @@ showIntroScene(1);
 let stairsAnimRaf = null;
 let stairsOffset = 0;
 function startTowerAnim(){
-  if(!$towerStairs) return;
+  if(!$towerStairs && !$bgStairs) return;
   if(stairsAnimRaf) return;
   const baseSpeed = 22; // px/sec
   let last = performance.now();
@@ -225,7 +228,8 @@ function startTowerAnim(){
     // Floor가 높아질수록 조금 더 빨라짐
     const speed = baseSpeed + Math.min(18, Math.floor(state.floor/20));
     stairsOffset = (stairsOffset + speed*dt) % 20000;
-    $towerStairs.style.backgroundPositionY = `${stairsOffset}px`;
+    $towerStairs && ($towerStairs.style.backgroundPositionY = `${stairsOffset}px`);
+    $bgStairs && ($bgStairs.style.backgroundPositionY = `${stairsOffset}px`);
     stairsAnimRaf = requestAnimationFrame(tick);
   };
   stairsAnimRaf = requestAnimationFrame(tick);

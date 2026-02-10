@@ -306,3 +306,41 @@ body{
 }
 .modalHead{display:flex; align-items:center; justify-content:space-between}
 .modalTitle{font-weight:1000}
+
+
+/* ===== Fullscreen Tower Background (요구사항: 좌우 성벽 고정 + 가운데 계단 무한 스크롤) ===== */
+.towerBg{
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  pointer-events: none;
+}
+.bgWall{
+  /* 이미지가 없을 때도 성벽 느낌이 나도록 그라데이션으로 구성 */
+  background:
+    radial-gradient(900px 900px at 30% 10%, rgba(255,255,255,.10), transparent 55%),
+    radial-gradient(700px 700px at 70% 40%, rgba(0,0,0,.55), transparent 60%),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,.07) 0px,
+      rgba(255,255,255,.07) 2px,
+      rgba(0,0,0,.10) 2px,
+      rgba(0,0,0,.10) 12px
+    );
+  filter: contrast(1.05) saturate(.9);
+}
+.bgWall.left{box-shadow: inset -24px 0 40px rgba(0,0,0,.65)}
+.bgWall.right{box-shadow: inset 24px 0 40px rgba(0,0,0,.65)}
+.bgStairs{
+  background-image: url('assets/intro3.png'); /* 나중에 계단 타일 이미지로 교체 가능 */
+  background-repeat: repeat-y;
+  background-size: cover;
+  background-position-y: 0px;
+  filter: contrast(1.08) saturate(1.05);
+}
+
+/* 메인 UI가 배경 위에 뜨도록 */
+.game{ position: relative; z-index: 1; }
+.topbar, .grid{ position: relative; z-index: 2; }
