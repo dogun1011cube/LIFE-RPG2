@@ -1,5 +1,5 @@
 // LIFE RPG v2.1.0 - 선택형 인트로 + 타워 연출(무한 계단) + 공부=층
-const APP_VERSION = "v2.2.0-random-tower-canvas";
+const APP_VERSION = "v2.2.1-randomtower-fixstart";
 
 const KEY_STATE = "lifeRpg2_state_v1";
 const KEY_BLOCK = "lifeRpg_rewardBlock_v1";
@@ -188,8 +188,12 @@ function enterGame(){
   $intro.classList.add("hidden");
   $game.classList.remove("hidden");
   if(location.hash !== "#game") history.replaceState(null, "", "#game");
-  startTowerCanvas();
-renderAll();
+
+  // ✅ 시작 안 되는 문제 방지: 화면이 열린 뒤(다음 프레임)에 배경 시작
+  requestAnimationFrame(()=>{
+    startTowerCanvas();   // 랜덤 캔버스 타워(없으면 조용히 스킵)
+    renderAll();
+  });
 }
 
 $enterCastleBtn?.addEventListener("click", ()=>{
@@ -236,45 +240,31 @@ function startTowerAnim(){
 }
 function stopTowerAnim(){
   if(stairsAnimRaf){ cancelAnimationFrame(stairsAnimRaf); stairsAnimRaf = null; }
-}
 
 
-// ---------- tower canvas (랜덤 생성: 좌/우 성벽 고정 + 가운데 계단 무한 스크롤)
-const $towerCanvas = document.getElementById("towerCanvas");
-let towerCtx = null;
-let towerSprite = null;
-let towerAtlas = null; // 컬러키(검정) 투명 처리된 캔버스
-let towerRaf = null;
+// ---------- tower canvas (랜덤 생성: 좌/우 성벽 랜덤 + 가운데 계단 무한 스크롤)
+let towerCanvasRaf = null;
 let towerScrollY = 0;
-let towerWalls = null; // {rows, left:[], right:[]}
+let towerWalls = null;
+let towerSprite = null;
+let towerAtlas = null;
 
 const TOWER = {
   TILE: 128,
-  // 스프라이트 시트 파일: assets/tower_tiles.png 로 넣어줘
   SRC: "assets/tower_tiles.png",
-  // 검정 배경이 박혀있으면 true(권장). 투명 PNG면 false로 바꿔도 됨.
-  COLORKEY_ON: true,
+  COLORKEY_ON: true,      // 검정 배경이면 true
   COLORKEY: [0,0,0],
   TOL: 18,
-  // TODO: 아래 타일 좌표는 '예시'야. 네 시트에 맞춰서 추후 정확히 맞추면 더 예쁘게 나와.
   WALL_PARTS: [
-    {sx:0,   sy:0}, {sx:128, sy:0}, {sx:256, sy:0}, {sx:384, sy:0}
+    // ✅ 예시 좌표(타일 시트에 맞춰서 나중에 조정하면 됨)
+    {sx:0,   sy:0},
+    {sx:128, sy:0},
+    {sx:256, sy:0},
+    {sx:384, sy:0},
   ],
-  // 가운데 계단 타일(반복용) - 예시
   STAIRS: {sx:512, sy:256},
   SPEED_PX_PER_SEC: 22,
 };
-
-function towerResize(){
-  if(!$towerCanvas) return;
-  $towerCanvas.width = Math.floor(window.innerWidth);
-  $towerCanvas.height = Math.floor(window.innerHeight);
-}
-window.addEventListener("resize", towerResize);
-
-function towerRand(arr){
-  return arr[Math.floor(Math.random()*arr.length)];
-}
 
 function towerMakeColorKeyTransparent(img, key=[0,0,0], tolerance=10){
   const c = document.createElement("canvas");
@@ -292,10 +282,15 @@ function towerMakeColorKeyTransparent(img, key=[0,0,0], tolerance=10){
   ctx.putImageData(imageData,0,0);
   return c;
 }
+function towerRand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
-function towerGenerateWalls(){
-  const TILE = TOWER.TILE;
-  const rows = Math.ceil($towerCanvas.height / TILE) + 2;
+function towerResize(canvas){
+  canvas.width = Math.floor(window.innerWidth);
+  canvas.height = Math.floor(window.innerHeight);
+}
+
+function towerGenerateWalls(canvas){
+  const rows = Math.ceil(canvas.height / TOWER.TILE) + 2;
   const left = [];
   const right = [];
   for(let i=0;i<rows;i++){
@@ -305,81 +300,80 @@ function towerGenerateWalls(){
   towerWalls = { rows, left, right };
 }
 
-function towerDrawTile(tile, dx, dy){
-  const TILE = TOWER.TILE;
-  const src = towerAtlas || towerSprite;
-  if(!src) return;
-  towerCtx.drawImage(src, tile.sx, tile.sy, TILE, TILE, dx, dy, TILE, TILE);
-}
-
-function towerDraw(){
-  if(!$towerCanvas || !towerCtx || !towerSprite || !towerWalls) return;
-  towerCtx.clearRect(0,0,$towerCanvas.width,$towerCanvas.height);
+function towerDraw(ctx, canvas){
+  if(!towerSprite || !towerWalls) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   const TILE = TOWER.TILE;
-  const cols = Math.ceil($towerCanvas.width / TILE);
-  const wallCols = 2; // 좌우 성벽 두 칸씩
+  const wallCols = 2;
   const centerX = wallCols * TILE;
-  const centerW = $towerCanvas.width - wallCols*2*TILE;
+  const centerW = canvas.width - wallCols*2*TILE;
+  const stairX = centerX + Math.floor((centerW - TILE)/2);
+
+  const src = towerAtlas || towerSprite;
 
   // 성벽(고정)
   for(let r=0;r<towerWalls.rows;r++){
     const y = r*TILE;
     for(let c=0;c<wallCols;c++){
-      towerDrawTile(towerWalls.left[r], c*TILE, y);
-      towerDrawTile(towerWalls.right[r], ($towerCanvas.width - (c+1)*TILE), y);
+      const L = towerWalls.left[r];
+      const R = towerWalls.right[r];
+      ctx.drawImage(src, L.sx, L.sy, TILE, TILE, c*TILE, y, TILE, TILE);
+      ctx.drawImage(src, R.sx, R.sy, TILE, TILE, canvas.width - (c+1)*TILE, y, TILE, TILE);
     }
   }
 
-  // 계단(무한 스크롤) - 가운데 한 줄
-  const stairX = centerX + Math.floor((centerW - TILE)/2);
+  // 계단(무한 스크롤)
   for(let r=0;r<towerWalls.rows;r++){
     const y = ((r*TILE + towerScrollY) % (towerWalls.rows*TILE)) - TILE;
-    towerDrawTile(TOWER.STAIRS, stairX, y);
+    ctx.drawImage(src, TOWER.STAIRS.sx, TOWER.STAIRS.sy, TILE, TILE, stairX, y, TILE, TILE);
   }
 }
 
 function startTowerCanvas(){
-  if(!$towerCanvas) return;
-  towerResize();
-  towerCtx = $towerCanvas.getContext("2d");
+  const canvas = document.getElementById("towerCanvas");
+  if(!canvas) return; // ✅ canvas가 없으면 조용히 종료(시작 안 되는 문제 방지)
+  const ctx = canvas.getContext("2d");
 
-  // 기존 CSS 배경 타워는 숨김 (배경이 그대로 보이는 문제 해결)
+  // 기존 CSS 배경을 숨겨서 '배경이 그대로' 문제 해결
   const oldBg = document.getElementById("towerBg");
   if(oldBg) oldBg.style.display = "none";
 
-  // 카드 안 미리보기(타워Viewport)도 기존 배경이 보이면 숨기고 싶으면 아래 주석 해제
-  // document.querySelector(".towerViewport")?.classList.add("hidden");
-
-  if(towerRaf){ cancelAnimationFrame(towerRaf); towerRaf = null; }
+  // 이미 돌고 있으면 중복 실행 방지
+  if(towerCanvasRaf){ cancelAnimationFrame(towerCanvasRaf); towerCanvasRaf = null; }
   towerScrollY = 0;
   towerWalls = null;
 
+  towerResize(canvas);
+  window.addEventListener("resize", ()=>towerResize(canvas), { passive:true });
+
   towerSprite = new Image();
   towerSprite.src = TOWER.SRC;
+
   towerSprite.onload = ()=>{
-    towerAtlas = (TOWER.COLORKEY_ON) ? towerMakeColorKeyTransparent(towerSprite, TOWER.COLORKEY, TOWER.TOL) : null;
-    towerGenerateWalls();
+    towerAtlas = TOWER.COLORKEY_ON ? towerMakeColorKeyTransparent(towerSprite, TOWER.COLORKEY, TOWER.TOL) : null;
+    towerGenerateWalls(canvas);
+
     let last = performance.now();
     const tick = (t)=>{
       const dt = (t-last)/1000; last = t;
-      // 층이 높을수록 조금 빨라짐
       const speed = TOWER.SPEED_PX_PER_SEC + Math.min(18, Math.floor(state.floor/20));
       towerScrollY = (towerScrollY + speed*dt) % 1000000;
-      towerDraw();
-      towerRaf = requestAnimationFrame(tick);
+      towerDraw(ctx, canvas);
+      towerCanvasRaf = requestAnimationFrame(tick);
     };
-    towerRaf = requestAnimationFrame(tick);
+    towerCanvasRaf = requestAnimationFrame(tick);
   };
+
   towerSprite.onerror = ()=>{
-    console.warn("tower_tiles.png를 못 찾았어. assets/tower_tiles.png 경로를 확인해줘.");
+    // 타일 시트 없으면 게임이 멈추면 안 됨: 경고만 띄우고 종료
+    console.warn("[LIFE-RPG] assets/tower_tiles.png 를 못 찾았어. 랜덤 타워 배경을 끄고 진행해.");
+    // 다시 보이도록 원하면 oldBg를 복구(선택)
+    // if(oldBg) oldBg.style.display = "";
   };
 }
 
-function stopTowerCanvas(){
-  if(towerRaf){ cancelAnimationFrame(towerRaf); towerRaf = null; }
 }
-
 
 // ---------- game logic
 function pushLog(title, msg){
