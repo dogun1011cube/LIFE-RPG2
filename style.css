@@ -62,18 +62,24 @@ body{
   z-index:9999;
   overflow:hidden;
 }
-.introBg{
+.introScene{
   position:absolute;
   inset:0;
   background-size:cover;
   background-position:center;
   filter:saturate(1.05) contrast(1.05);
   transform:scale(1.03);
-  transition: opacity .6s ease, transform .9s ease;
-  opacity:1;
-  pointer-events:none; /* 중요: 배경이 클릭을 먹지 않게 */
+  transition: opacity .35s ease, transform .45s ease;
+  opacity:0;
+  pointer-events:none;
+  display:flex;
+  align-items:stretch;
 }
-.intro.fade .introBg{opacity:.0; transform:scale(1.01)}
+.introScene.active{
+  opacity:1;
+  transform:scale(1.02);
+  pointer-events:auto;
+}
 .introHud{
   position:absolute;
   top:0; left:0; right:0;
@@ -81,7 +87,7 @@ body{
   justify-content:space-between;
   align-items:flex-start;
   padding:18px 18px;
-  pointer-events:none; /* HUD 컨테이너는 클릭 차단 */
+  pointer-events:none;
 }
 .introTitle{pointer-events:none}
 .badge{
@@ -94,9 +100,6 @@ body{
 }
 .sub{margin-top:6px; color:rgba(255,255,255,.75); font-weight:800; font-size:13px}
 
-.introControls{
-  pointer-events:auto; /* 버튼은 클릭 가능 */
-}
 .introFooter{
   position:absolute;
   left:0; right:0; bottom:0;
@@ -114,8 +117,34 @@ body{
   text-shadow:0 2px 10px rgba(0,0,0,.55);
   pointer-events:none;
 }
+.introFooter.single{justify-content:center}
 .introFooter .btn{pointer-events:auto}
-#enterBtn{min-width:140px}
+
+.introCenter{
+  position:absolute;
+  left:0; right:0;
+  top:55%;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:12px;
+  padding:0 18px;
+  pointer-events:none;
+}
+.introCenter .btn{pointer-events:auto}
+.introSlime{width:170px; height:auto; filter: drop-shadow(0 12px 28px rgba(0,0,0,.60));}
+.dialog{
+  max-width:720px;
+  width:min(720px, 90vw);
+  background:rgba(0,0,0,.68);
+  border:1px solid rgba(255,255,255,.16);
+  padding:14px 16px;
+  border-radius:16px;
+  font-weight:900;
+  text-align:center;
+  text-shadow:0 2px 10px rgba(0,0,0,.55);
+}
 
 /* GAME */
 .game{min-height:100vh}
@@ -193,6 +222,36 @@ body{
 }
 .towerBarText{margin-top:6px; color:rgba(255,255,255,.7); font-weight:900; font-size:12px}
 .towerRight{display:flex; flex-direction:column; align-items:center; gap:8px; min-width:170px}
+.towerViewport{
+  width:170px;
+  height:210px;
+  border-radius:18px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(0,0,0,.18);
+  display:grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+}
+.towerWall{
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,.10) 0px,
+      rgba(255,255,255,.10) 2px,
+      rgba(0,0,0,.05) 2px,
+      rgba(0,0,0,.05) 10px
+    );
+  filter: contrast(1.05) saturate(.95);
+}
+.towerWall.left{box-shadow: inset -14px 0 24px rgba(0,0,0,.55)}
+.towerWall.right{box-shadow: inset 14px 0 24px rgba(0,0,0,.55)}
+.towerStairs{
+  background-image: url('assets/intro3.png');
+  background-repeat: repeat-y;
+  background-size: cover;
+  background-position-y: 0px;
+  filter: contrast(1.1) saturate(1.05);
+}
 .slime{width:140px; height:auto; filter: drop-shadow(0 10px 25px rgba(0,0,0,.55)); pointer-events:none}
 .slimeText{color:rgba(255,255,255,.7); font-weight:900; font-size:12px; text-align:center}
 

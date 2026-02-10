@@ -1,22 +1,20 @@
-// LIFE RPG v2.0.1 - intro click fix + restore core
-const APP_VERSION = "v2.0.1-intro-clickfix";
+// LIFE RPG v2.1.0 - 선택형 인트로 + 타워 연출(무한 계단) + 공부=층
+const APP_VERSION = "v2.1.0-branching-intro";
 
 const KEY_STATE = "lifeRpg2_state_v1";
 const KEY_BLOCK = "lifeRpg_rewardBlock_v1";
 const KEY_PROFILE = "lifeRpg2_profile_v1";
 
-const INTRO_IMAGES = [
-  "assets/intro1.png",
-  "assets/intro2.png",
-  "assets/intro3.png",
-];
+// (인트로 이미지는 index.html에서 각 Scene에 직접 연결)
 
 // ---------- DOM
 const $intro = document.getElementById("intro");
-const $introBg = document.getElementById("introBg");
-const $skipBtn = document.getElementById("skipBtn");
-const $enterBtn = document.getElementById("enterBtn");
-const $introHint = document.getElementById("introHint");
+const $introScene1 = document.getElementById("introScene1");
+const $introScene2 = document.getElementById("introScene2");
+const $introScene3 = document.getElementById("introScene3");
+const $enterCastleBtn = document.getElementById("enterCastleBtn");
+const $slimeDialog = document.getElementById("slimeDialog");
+const $studyStartBtn = document.getElementById("studyStartBtn");
 
 const $game = document.getElementById("game");
 
@@ -31,6 +29,8 @@ const $totalText = document.getElementById("totalText");
 const $towerFloorBig = document.getElementById("towerFloorBig");
 const $towerBarFill = document.getElementById("towerBarFill");
 const $toNextFloor = document.getElementById("toNextFloor");
+
+const $towerStairs = document.getElementById("towerStairs");
 
 const $subjectSelect = document.getElementById("subjectSelect");
 const $addSubjectOpenBtn = document.getElementById("addSubjectOpenBtn");
@@ -155,65 +155,82 @@ let state = loadState();
 // If user wants fresh start ALWAYS for this build, uncomment next line
 // resetStateToFresh();
 
-// ---------- intro
-let introIndex = 0;
-let introTimer = null;
+// ---------- intro (선택형)
+let introAutoTimer = null;
 
-function setIntroImage(i){
-  introIndex = clamp(i, 0, INTRO_IMAGES.length-1);
-  $intro.classList.add("fade");
-  // transition out then change
-  setTimeout(()=>{
-    $introBg.style.backgroundImage = `url('${INTRO_IMAGES[introIndex]}')`;
-    $intro.classList.remove("fade");
-    $enterBtn.classList.toggle("hidden", introIndex !== INTRO_IMAGES.length-1);
-    $introHint.textContent = introIndex === 0 ? "성으로 들어갑니다…" :
-                             introIndex === 1 ? "대성전 내부로…" :
-                             "빛의 계단을 오르는 중…";
-    $skipBtn.textContent = introIndex === INTRO_IMAGES.length-1 ? "다시 보기 ⟲" : "다음 ▶";
-  }, 350);
-}
+function showIntroScene(n){
+  [$introScene1,$introScene2,$introScene3].forEach((el, idx)=>{
+    if(!el) return;
+    el.classList.toggle("active", idx === (n-1));
+  });
 
-function startIntro(){
-  // Ensure buttons are clickable: explicitly set pointer-events
-  $skipBtn.style.pointerEvents = "auto";
-  $enterBtn.style.pointerEvents = "auto";
-
-  $introBg.style.backgroundImage = `url('${INTRO_IMAGES[0]}')`;
-  $enterBtn.classList.add("hidden");
-
-  introTimer = setInterval(()=>{
-    if(introIndex < INTRO_IMAGES.length-1){
-      setIntroImage(introIndex + 1);
-    }
-  }, 3000);
-}
-
-function stopIntro(){
-  if(introTimer){ clearInterval(introTimer); introTimer = null; }
-}
-
-$skipBtn.addEventListener("click", ()=>{
-  if(introIndex === INTRO_IMAGES.length-1){
-    setIntroImage(0);
-    return;
+  // Scene 2: 잠깐 보여주고 Scene 3로 자동
+  if(introAutoTimer){ clearTimeout(introAutoTimer); introAutoTimer = null; }
+  if(n === 2){
+    introAutoTimer = setTimeout(()=>showIntroScene(3), 1200);
   }
-  setIntroImage(introIndex + 1);
-});
-$enterBtn.addEventListener("click", ()=>{
-  stopIntro();
+}
+
+function runSlimeDialog(){
+  if(!$slimeDialog) return;
+  $studyStartBtn.classList.add("hidden");
+  $slimeDialog.textContent = "이 성을 올라가려면 나를 이겨야해";
+  setTimeout(()=>{ $slimeDialog.textContent = "나를 이기기 위해서는 공부밖에 방법이 없어"; }, 1600);
+  setTimeout(()=>{ $studyStartBtn.classList.remove("hidden"); }, 3200);
+}
+
+function enterGame(){
   $intro.classList.add("hidden");
   $game.classList.remove("hidden");
   if(location.hash !== "#game") history.replaceState(null, "", "#game");
+  startTowerAnim();
   renderAll();
+}
+
+$enterCastleBtn?.addEventListener("click", ()=>{
+  showIntroScene(2);
+});
+
+// Scene3가 보이면 대사 시작
+const introObserver = new MutationObserver(()=>{
+  if($introScene3.classList.contains("active")) runSlimeDialog();
+});
+if($introScene3) introObserver.observe($introScene3, {attributes:true, attributeFilter:["class"]});
+
+$studyStartBtn?.addEventListener("click", ()=>{
+  enterGame();
 });
 
 // If user opens directly with #game, skip intro
 if(location.hash === "#game"){
   $intro.classList.add("hidden");
   $game.classList.remove("hidden");
+  startTowerAnim();
 }else{
-  startIntro();
+  showIntroScene(1);
+}
+
+// ---------- tower animation (JS)
+let stairsAnimRaf = null;
+let stairsOffset = 0;
+function startTowerAnim(){
+  if(!$towerStairs) return;
+  if(stairsAnimRaf) return;
+  const baseSpeed = 22; // px/sec
+  let last = performance.now();
+  const tick = (t)=>{
+    const dt = (t - last) / 1000;
+    last = t;
+    // Floor가 높아질수록 조금 더 빨라짐
+    const speed = baseSpeed + Math.min(18, Math.floor(state.floor/20));
+    stairsOffset = (stairsOffset + speed*dt) % 20000;
+    $towerStairs.style.backgroundPositionY = `${stairsOffset}px`;
+    stairsAnimRaf = requestAnimationFrame(tick);
+  };
+  stairsAnimRaf = requestAnimationFrame(tick);
+}
+function stopTowerAnim(){
+  if(stairsAnimRaf){ cancelAnimationFrame(stairsAnimRaf); stairsAnimRaf = null; }
 }
 
 // ---------- game logic
