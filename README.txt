@@ -1,13 +1,16 @@
-FIX: 다시 처음으로 가는 문제 해결
+LIFE-RPG2 v2.2.2 (Canvas Random Tower Integrated)
 
-원인:
-- main.js 하단에 있는 '처음 1회 강제 초기화(ONCE_KEY)' 로직 때문에
-  새 ZIP 업로드 시마다 상태가 리셋됨
+✅ 포함
+- 인트로(선택형) 유지
+- '다시 처음으로' 가는 강제 초기화 제거
+- 메인 진입 시 towerBg(기존 CSS 배경) 숨김
+- Canvas로 좌/우 성벽 랜덤 생성 + 가운데 계단 무한 스크롤
 
-해결:
-- 해당 초기화 로직을 제거(비활성화)
+📌 반드시 준비
+- assets/tower_tiles.png  (타일 스프라이트 시트)
+  * 파일명이 다르면 main.js의 TOWER.SRC를 맞춰줘.
 
-적용 방법:
-1) 이 ZIP을 풀기
-2) main.js 파일 하나만 기존 저장소에 덮어쓰기
+적용
+1) index.html / main.js 를 기존 저장소 루트에 덮어쓰기 업로드
+2) assets/tower_tiles.png 추가
 3) GitHub Pages에서 Ctrl+F5

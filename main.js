@@ -1,5 +1,5 @@
 // LIFE RPG v2.1.0 - 선택형 인트로 + 타워 연출(무한 계단) + 공부=층
-const APP_VERSION = "v2.1.0-branching-intro";
+const APP_VERSION = "v2.2.2-canvasbg-integrated";
 
 const KEY_STATE = "lifeRpg2_state_v1";
 const KEY_BLOCK = "lifeRpg_rewardBlock_v1";
@@ -188,8 +188,16 @@ function enterGame(){
   $intro.classList.add("hidden");
   $game.classList.remove("hidden");
   if(location.hash !== "#game") history.replaceState(null, "", "#game");
-  startTowerAnim();
-  renderAll();
+
+  // 기존 CSS 배경(나오면 안 되는 것) 숨김
+  const oldBg = document.getElementById("towerBg");
+  if(oldBg) oldBg.style.display = "none";
+
+  // ✅ DOM 반영 다음 프레임에 캔버스 시작(시작 안 되는 문제 방지)
+  requestAnimationFrame(()=>{
+    startTowerCanvas();
+    renderAll();
+  });
 }
 
 $enterCastleBtn?.addEventListener("click", ()=>{
@@ -236,6 +244,135 @@ function startTowerAnim(){
 }
 function stopTowerAnim(){
   if(stairsAnimRaf){ cancelAnimationFrame(stairsAnimRaf); stairsAnimRaf = null; }
+
+
+// ---------- tower canvas (랜덤 생성: 좌/우 성벽 랜덤 + 가운데 계단 무한 스크롤)
+let towerCanvasRaf = null;
+let towerScrollY = 0;
+let towerWalls = null;
+let towerSprite = null;
+let towerAtlas = null;
+
+const TOWER = {
+  TILE: 128,
+  SRC: "assets/tower_tiles.png",
+  COLORKEY_ON: true,     // 검정 배경이면 true (권장)
+  COLORKEY: [0,0,0],
+  TOL: 18,
+
+  // ✅ 예시 좌표(타일 시트에 맞춰 나중에 조정 가능)
+  WALL_PARTS: [
+    {sx:0,   sy:0},
+    {sx:128, sy:0},
+    {sx:256, sy:0},
+    {sx:384, sy:0},
+  ],
+  STAIRS: {sx:512, sy:256},
+
+  SPEED_PX_PER_SEC: 22,
+};
+
+function towerMakeColorKeyTransparent(img, key=[0,0,0], tolerance=10){
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img,0,0);
+  const imageData = ctx.getImageData(0,0,c.width,c.height);
+  const d = imageData.data;
+  for(let i=0;i<d.length;i+=4){
+    const r=d[i], g=d[i+1], b=d[i+2];
+    if (Math.abs(r-key[0])<=tolerance && Math.abs(g-key[1])<=tolerance && Math.abs(b-key[2])<=tolerance){
+      d[i+3]=0;
+    }
+  }
+  ctx.putImageData(imageData,0,0);
+  return c;
+}
+function towerRand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function towerResize(canvas){
+  canvas.width = Math.floor(window.innerWidth);
+  canvas.height = Math.floor(window.innerHeight);
+}
+
+function towerGenerateWalls(canvas){
+  const rows = Math.ceil(canvas.height / TOWER.TILE) + 2;
+  const left = [];
+  const right = [];
+  for(let i=0;i<rows;i++){
+    left.push(towerRand(TOWER.WALL_PARTS));
+    right.push(towerRand(TOWER.WALL_PARTS));
+  }
+  towerWalls = { rows, left, right };
+}
+
+function towerDraw(ctx, canvas){
+  if(!towerSprite || !towerWalls) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const TILE = TOWER.TILE;
+  const wallCols = 2;
+  const centerX = wallCols * TILE;
+  const centerW = canvas.width - wallCols*2*TILE;
+  const stairX = centerX + Math.floor((centerW - TILE)/2);
+
+  const src = towerAtlas || towerSprite;
+
+  // 성벽(고정)
+  for(let r=0;r<towerWalls.rows;r++){
+    const y = r*TILE;
+    for(let c=0;c<wallCols;c++){
+      const L = towerWalls.left[r];
+      const R = towerWalls.right[r];
+      ctx.drawImage(src, L.sx, L.sy, TILE, TILE, c*TILE, y, TILE, TILE);
+      ctx.drawImage(src, R.sx, R.sy, TILE, TILE, canvas.width - (c+1)*TILE, y, TILE, TILE);
+    }
+  }
+
+  // 계단(무한 스크롤)
+  for(let r=0;r<towerWalls.rows;r++){
+    const y = ((r*TILE + towerScrollY) % (towerWalls.rows*TILE)) - TILE;
+    ctx.drawImage(src, TOWER.STAIRS.sx, TOWER.STAIRS.sy, TILE, TILE, stairX, y, TILE, TILE);
+  }
+}
+
+function startTowerCanvas(){
+  const canvas = document.getElementById("towerCanvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  towerResize(canvas);
+  // resize on window change
+  window.addEventListener("resize", ()=>towerResize(canvas), { passive: true });
+
+  // 중복 RAF 방지
+  if(towerCanvasRaf){ cancelAnimationFrame(towerCanvasRaf); towerCanvasRaf = null; }
+  towerScrollY = 0;
+  towerWalls = null;
+
+  towerSprite = new Image();
+  towerSprite.src = TOWER.SRC;
+
+  towerSprite.onload = ()=>{
+    towerAtlas = TOWER.COLORKEY_ON ? towerMakeColorKeyTransparent(towerSprite, TOWER.COLORKEY, TOWER.TOL) : null;
+    towerGenerateWalls(canvas);
+
+    let last = performance.now();
+    const tick = (t)=>{
+      const dt = (t-last)/1000; last = t;
+      const speed = TOWER.SPEED_PX_PER_SEC + Math.min(18, Math.floor(state.floor/20));
+      towerScrollY = (towerScrollY + speed*dt) % 1000000;
+      towerDraw(ctx, canvas);
+      towerCanvasRaf = requestAnimationFrame(tick);
+    };
+    towerCanvasRaf = requestAnimationFrame(tick);
+  };
+
+  towerSprite.onerror = ()=>{
+    console.warn("[LIFE-RPG] assets/tower_tiles.png 를 못 찾았어. (랜덤 타워 배경이 안 나올 수 있음)");
+  };
+}
+
 }
 
 // ---------- game logic
@@ -562,5 +699,5 @@ $deleteEditBtn.addEventListener("click", deleteEdit);
 });
 
 // ---------- init
-// 🔧 reset-once 비활성화 (다시 처음으로 가는 문제 해결)
+// ✅ 강제 초기화(ONCE_KEY) 제거: 업로드할 때마다 '처음으로' 가는 문제 해결
 renderAll();
