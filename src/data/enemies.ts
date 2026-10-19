@@ -1,0 +1,91 @@
+import type { EnemyDef } from '../game/types';
+
+// Respawn rule (applies to every enemy with a respawnTime): after defeat, the
+// respawn timer counts down; when it reaches zero the enemy reappears at its spawn
+// point, but only while the player is more than RESPAWN_MIN_DISTANCE meters away.
+export const RESPAWN_MIN_DISTANCE = 30;
+
+export const ENEMIES: Record<string, EnemyDef> = {
+  slime: {
+    id: 'slime',
+    name: '초원 슬라임',
+    maxHp: 40,
+    attack: 7,
+    speed: 3.4,
+    detectRange: 11,
+    attackRange: 1.9,
+    attackCooldown: 1.5,
+    scale: 1,
+    xp: 14,
+    drops: [
+      { id: 'gold', min: 2, max: 5, chance: 1 },
+      { id: 'research', min: 1, max: 2, chance: 0.6 },
+      { id: 'copper', min: 1, max: 2, chance: 0.3 },
+    ],
+    respawnTime: 45,
+    color: '#5fd38a',
+    coreColor: '#d6ff7a',
+  },
+  crystal_slime: {
+    id: 'crystal_slime',
+    name: '결정 슬라임',
+    maxHp: 95,
+    attack: 13,
+    speed: 3.0,
+    detectRange: 13,
+    attackRange: 2.3,
+    attackCooldown: 1.7,
+    scale: 1.35,
+    xp: 34,
+    drops: [
+      { id: 'gold', min: 5, max: 10, chance: 1 },
+      { id: 'silicon', min: 2, max: 4, chance: 1 },
+      { id: 'research', min: 2, max: 4, chance: 0.8 },
+    ],
+    respawnTime: 60,
+    color: '#7ec8ff',
+    coreColor: '#e8f7ff',
+  },
+  void_slime: {
+    id: 'void_slime',
+    name: '타락 슬라임',
+    maxHp: 130,
+    attack: 18,
+    speed: 3.6,
+    detectRange: 14,
+    attackRange: 2.4,
+    attackCooldown: 1.4,
+    scale: 1.45,
+    xp: 55,
+    drops: [
+      { id: 'gold', min: 8, max: 14, chance: 1 },
+      { id: 'research', min: 4, max: 6, chance: 1 },
+      { id: 'alloy', min: 1, max: 2, chance: 0.5 },
+    ],
+    respawnTime: 75,
+    color: '#a35cff',
+    coreColor: '#ff7ad9',
+  },
+  guardian: {
+    id: 'guardian',
+    name: '타락한 수호자',
+    maxHp: 650,
+    attack: 26,
+    speed: 2.6,
+    detectRange: 20,
+    attackRange: 4.2,
+    attackCooldown: 2.4,
+    scale: 3.4,
+    xp: 320,
+    drops: [
+      { id: 'ancient_core', min: 1, max: 1, chance: 1 },
+      { id: 'gold', min: 80, max: 120, chance: 1 },
+      { id: 'research', min: 25, max: 30, chance: 1 },
+      { id: 'alloy', min: 6, max: 10, chance: 1 },
+    ],
+    respawnTime: 300,
+    color: '#6b2fd6',
+    coreColor: '#ff4fd1',
+    boss: true,
+  },
+};

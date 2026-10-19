@@ -1,0 +1,27 @@
+:root {
+  --bg: #070b10;
+  --panel: rgba(10, 16, 24, 0.92);
+  --panel-solid: #0c131c;
+  --panel-2: rgba(18, 27, 38, 0.95);
+  --panel-3: #16212e;
+  --line: rgba(120, 200, 230, 0.16);
+  --line-strong: rgba(94, 242, 255, 0.45);
+  --text: #e4eef5;
+  --text-dim: #93a6b5;
+  --text-faint: #5f7383;
+  --cyan: #4fe9ff;
+  --cyan-dim: #2aa9c2;
+  --cyan-glow: rgba(79, 233, 255, 0.35);
+  --gold: #f2c14e;
+  --gold-dim: #a8822a;
+  --green: #5cff9a;
+  --red: #ff5a5a;
+  --orange: #ffa94d;
+  --violet: #b18cff;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: 'Noto Sans KR', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-display: 'Rajdhani', 'Noto Sans KR', system-ui, sans-serif;
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
