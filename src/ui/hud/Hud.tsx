@@ -243,12 +243,15 @@ function LockHint() {
   const buildMode = useUi((s) => s.buildMode);
   const sel = useUi((s) => s.buildSelection);
   const dead = useUi((s) => s.dead);
+  const unavailable = useUi((s) => s.lockUnavailable);
   if (locked || panel || dead) return null;
-  return (
-    <div className="hud-lockhint">
-      {buildMode && sel ? '커서 모드: 지면을 클릭해 설치 · 우클릭으로 취소' : '화면을 클릭하면 시점 조작이 활성화됩니다'}
-    </div>
-  );
+  const text =
+    buildMode && sel
+      ? '커서 모드: 지면을 클릭해 설치 · 우클릭으로 취소'
+      : unavailable
+        ? '마우스 고정을 사용할 수 없는 환경: 우클릭 드래그 또는 방향키로 시점 회전, 좌클릭으로 공격'
+        : '화면을 클릭하면 시점 조작이 활성화됩니다 (방향키·우클릭 드래그로도 회전 가능)';
+  return <div className="hud-lockhint">{text}</div>;
 }
 
 function Fps() {

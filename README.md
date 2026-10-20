@@ -25,6 +25,7 @@ npm run build      # typecheck (tsc -b) + vite build → dist/
 npm run preview    # serve dist/ locally → http://localhost:4173
 npm test           # unit tests (Vitest)
 npm run typecheck  # type check only
+npm run build:artifact  # after build: single-file page (CSS/JS inlined) → dist-artifact/
 ```
 
 `dist/` uses relative paths (`base: './'`), so it can be served from any static host or subpath (e.g. GitHub Pages). **Note:** the repository root `index.html` is now the Vite entry point. To deploy to GitHub Pages, publish the **build output (`dist/`)**, not the repo root. A GitHub Actions workflow for this is not included.
@@ -41,6 +42,7 @@ The study-tracker web app that was in this repository (`index.html`, `main.js`, 
 | --- | --- |
 | W A S D | Move |
 | Mouse | Rotate camera (click the screen first to capture the mouse) |
+| Arrow keys / right-drag | Rotate camera without mouse capture |
 | Space | Jump |
 | Shift | Sprint |
 | Left click | Basic attack (0.5 s cooldown) |
@@ -56,6 +58,8 @@ The study-tracker web app that was in this repository (`index.html`, `main.js`, 
 | H | Toggle the on-screen control guide |
 | Ctrl+S | Quick save |
 | Esc | Close menu / pause |
+
+**Without mouse capture:** if the browser or an embedding frame refuses pointer lock, the game switches to fallback controls automatically: right-drag or arrow keys rotate the camera and left-click on the screen attacks. Confirmations (new game, demolish, reset save…) use in-game dialogs, so they also work where `window.confirm()` is blocked.
 
 **Browser note:** for security, browsers use Esc to release pointer lock first. That opens the pause menu; click the screen to resume. In build mode, Esc deselects the building and frees the cursor so you can click the building list at the bottom. With a building selected and the cursor free, clicking the ground places it. Combat pauses while a menu is open; the civilization simulation keeps running, except in the pause menu.
 

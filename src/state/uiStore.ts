@@ -40,6 +40,14 @@ export interface Dialog {
   speaker?: string;
 }
 
+export interface ConfirmRequest {
+  title: string;
+  body?: string;
+  confirmLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
 export interface Placement {
   valid: boolean;
   reason?: string;
@@ -61,9 +69,15 @@ interface UiStore {
   zoneName: string | null;
   dead: { goldLost: number } | null;
   pointerLocked: boolean;
+  /** The browser/frame refused pointer lock; fallback controls are active */
+  lockUnavailable: boolean;
   settings: Settings;
   lastSaveAt: number | null;
+  /** In-page confirmation dialog (browser confirm() is unavailable in sandboxed frames) */
+  confirmRequest: ConfirmRequest | null;
 
+  askConfirm: (req: ConfirmRequest) => void;
+  closeConfirm: () => void;
   setPhase: (p: Phase) => void;
   openPanel: (p: Panel | null) => void;
   togglePanel: (p: Panel) => void;
@@ -78,6 +92,7 @@ interface UiStore {
   setZoneName: (z: string | null) => void;
   setDead: (d: { goldLost: number } | null) => void;
   setPointerLocked: (v: boolean) => void;
+  setLockUnavailable: (v: boolean) => void;
   updateSettings: (s: Partial<Settings>) => void;
   inspectBuilding: (id: string | null) => void;
   setLastSaveAt: (t: number | null) => void;
@@ -128,9 +143,13 @@ export const useUi = create<UiStore>((set, get) => ({
   zoneName: null,
   dead: null,
   pointerLocked: false,
+  lockUnavailable: false,
   settings: loadSettings(),
   lastSaveAt: null,
+  confirmRequest: null,
 
+  askConfirm: (confirmRequest) => set({ confirmRequest }),
+  closeConfirm: () => set({ confirmRequest: null }),
   setPhase: (phase) => set({ phase, panel: null, buildMode: false, buildSelection: null, dialog: null, dead: null }),
   openPanel: (panel) => {
     const cur = get().panel;
@@ -166,6 +185,7 @@ export const useUi = create<UiStore>((set, get) => ({
   },
   setDead: (dead) => set({ dead }),
   setPointerLocked: (pointerLocked) => set({ pointerLocked }),
+  setLockUnavailable: (lockUnavailable) => set({ lockUnavailable }),
   updateSettings: (s) => {
     const settings = { ...get().settings, ...s };
     set({ settings });

@@ -14,6 +14,7 @@ import { ControlsPanel, DeathScreen, MainMenu, MultiplayerPanel, PauseMenu, Sett
 import { useHotkeys } from '../ui/hotkeys';
 import { subscribeEventFeedback } from '../ui/eventFeedback';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ConfirmDialog } from '../ui/common/ConfirmDialog';
 import { installDebugHooks } from './debug';
 
 function ActivePanel() {
@@ -88,6 +89,7 @@ export default function App() {
           <DeathScreen />
         </>
       )}
+      <ConfirmDialog />
       {!hideLoader && <LoadingScreen done={ready} />}
     </div>
   );

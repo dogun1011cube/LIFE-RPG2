@@ -28,6 +28,7 @@ const GRAVITY = 24;
 const PLAYER_RADIUS = 0.45;
 const AUTOSAVE_INTERVAL = 120;
 const FRAME_CAP = 0.5;
+const KEY_TURN_SPEED = 2.4;
 const MAX_SUBSTEP = 1 / 30;
 
 /** Lightweight performance counters (read by the FPS overlay / tests). */
@@ -51,6 +52,7 @@ export function GameLoop() {
 
   useEffect(() => {
     attachInput(gl.domElement);
+    lockState.onUnavailable = () => useUi.getState().setLockUnavailable(true);
     runtime.staticColliders = getScatter().colliders;
     const onLockChange = () => {
       const locked = document.pointerLockElement === gl.domElement;
@@ -79,6 +81,7 @@ export function GameLoop() {
       document.removeEventListener('pointerlockchange', onLockChange);
       gl.domElement.removeEventListener('mousedown', onCanvasDown);
       window.removeEventListener('blur', onBlur);
+      lockState.onUnavailable = null;
       detachInput();
     };
   }, [gl]);
@@ -117,11 +120,16 @@ export function GameLoop() {
     const locked = !!document.pointerLockElement;
     const stats = getPlayerStats(game);
 
-    // ---------------- Camera look
-    if (locked && !ui.panel) {
+    // ---------------- Camera look (pointer lock, right-drag fallback, or arrow keys)
+    if (!ui.panel && !ui.dead) {
       const sens = 0.0023 * settings.sensitivity;
+      const invert = settings.invertY ? -1 : 1;
       runtime.camera.yaw -= input.mouseDX * sens;
-      runtime.camera.pitch = clamp(runtime.camera.pitch + input.mouseDY * sens * (settings.invertY ? -1 : 1), -0.4, 1.15);
+      runtime.camera.pitch = clamp(runtime.camera.pitch + input.mouseDY * sens * invert, -0.4, 1.15);
+      const turn = (input.keys.has('ArrowLeft') ? 1 : 0) - (input.keys.has('ArrowRight') ? 1 : 0);
+      const tilt = (input.keys.has('ArrowDown') ? 1 : 0) - (input.keys.has('ArrowUp') ? 1 : 0);
+      if (turn) runtime.camera.yaw += turn * KEY_TURN_SPEED * settings.sensitivity * frameDt;
+      if (tilt) runtime.camera.pitch = clamp(runtime.camera.pitch + tilt * KEY_TURN_SPEED * 0.5 * settings.sensitivity * invert * frameDt, -0.4, 1.15);
     }
 
     // ---------------- Gameplay input
@@ -150,7 +158,9 @@ export function GameLoop() {
         if (input.clicks.has(2) && ui.buildSelection) ui.selectBuilding(null);
       } else {
         if (input.wheel !== 0) runtime.camera.distance = clamp(runtime.camera.distance + input.wheel * 0.8, 3.5, 13);
-        if (input.clicks.has(0) && locked && p.attackCd <= 0) performAttack(stats.attack);
+        // Without pointer lock (refused by the browser/frame), a left click on the canvas attacks
+        const canAttack = locked || (lockState.unavailable && input.cursorOverCanvas);
+        if (input.clicks.has(0) && canAttack && p.attackCd <= 0) performAttack(stats.attack);
         if (input.pressed.has('KeyE')) {
           const target = findInteractable(game, p.pos.x, p.pos.z);
           if (target && !target.disabled) interact(target);

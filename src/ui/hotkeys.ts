@@ -24,6 +24,10 @@ export function useHotkeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ui = useUi.getState();
+      if (ui.confirmRequest) {
+        if (e.code === 'Escape') ui.closeConfirm();
+        return;
+      }
       if (ui.phase !== 'playing') return;
       if (e.code === 'Escape') {
         // The same Esc press already released pointer lock (and opened pause / cancelled placement)

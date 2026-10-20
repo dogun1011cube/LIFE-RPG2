@@ -34,8 +34,13 @@ export function MainMenu() {
             className="menu-btn primary"
             onClick={() => {
               playSfx('click');
-              if (info && !confirm('새 게임을 시작하면 현재 진행 상황은 저장하지 않는 한 사라집니다. 계속할까요?')) return;
-              startNewGame();
+              if (!info) return startNewGame();
+              useUi.getState().askConfirm({
+                title: '새 게임을 시작할까요?',
+                body: '저장된 게임은 그대로 남지만, 새 게임에서 저장하면 덮어쓰게 됩니다.',
+                confirmLabel: '새 게임 시작',
+                onConfirm: startNewGame,
+              });
             }}
           >
             새 게임
@@ -60,13 +65,34 @@ export function MainMenu() {
           <button className="menu-btn" onClick={() => useUi.getState().openPanel('multiplayer')}>
             멀티플레이 <small>개발 예정</small>
           </button>
+          <FullscreenButton />
         </nav>
+        <p className="menu-desktop-note">키보드와 마우스가 있는 데스크톱 브라우저에서 플레이하세요. 터치 조작은 지원하지 않습니다.</p>
         <p className="menu-foot">싱글플레이 버티컬 슬라이스 v0.1 · 저장 데이터는 이 브라우저에만 보관됩니다.</p>
       </div>
       {panel === 'settings' && <SettingsPanel onReset={() => setInfo(saveInfo())} />}
       {panel === 'controls' && <ControlsPanel />}
       {panel === 'multiplayer' && <MultiplayerPanel />}
     </div>
+  );
+}
+
+/** Optional fullscreen toggle; silently unavailable where the browser/frame refuses it. */
+function FullscreenButton() {
+  const [full, setFull] = useState(() => !!document.fullscreenElement);
+  if (!document.fullscreenEnabled) return null;
+  return (
+    <button
+      className="menu-btn"
+      onClick={() => {
+        const req = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+        req
+          .then(() => setFull(!!document.fullscreenElement))
+          .catch(() => useUi.getState().notify({ kind: 'warning', title: '이 환경에서는 전체 화면을 사용할 수 없습니다.' }));
+      }}
+    >
+      {full ? '전체 화면 종료' : '전체 화면'}
+    </button>
   );
 }
 
@@ -91,7 +117,12 @@ export function PauseMenu() {
               useUi.getState().notify({ kind: 'error', title: '저장된 게임이 없습니다.' });
               return;
             }
-            if (confirm('마지막 저장 상태로 되돌릴까요? 저장하지 않은 진행은 사라집니다.')) loadGameNow();
+            useUi.getState().askConfirm({
+              title: '마지막 저장 상태로 되돌릴까요?',
+              body: '저장하지 않은 진행은 사라집니다.',
+              confirmLabel: '불러오기',
+              onConfirm: () => loadGameNow(),
+            });
           }}
         >
           불러오기
@@ -102,10 +133,16 @@ export function PauseMenu() {
         <button className="menu-btn" onClick={() => useUi.getState().openPanel('controls')}>
           조작법
         </button>
+        <FullscreenButton />
         <button
           className="menu-btn"
           onClick={() => {
-            if (confirm('메인 메뉴로 나갈까요? 저장하지 않은 진행은 사라집니다.')) returnToMenu();
+            useUi.getState().askConfirm({
+              title: '메인 메뉴로 나갈까요?',
+              body: '저장하지 않은 진행은 사라집니다.',
+              confirmLabel: '메인 메뉴로',
+              onConfirm: returnToMenu,
+            });
           }}
         >
           메인 메뉴
@@ -167,10 +204,17 @@ export function SettingsPanel({ onReset }: { onReset?: () => void }) {
                 useUi.getState().notify({ kind: 'info', title: '삭제할 저장 데이터가 없습니다.' });
                 return;
               }
-              if (!confirm('정말로 저장 데이터를 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
-              useGame.getState().resetSave();
-              useUi.getState().notify({ kind: 'success', title: '저장 데이터가 삭제되었습니다.' });
-              onReset?.();
+              useUi.getState().askConfirm({
+                title: '저장 데이터를 삭제할까요?',
+                body: '브라우저에 저장된 게임이 영구 삭제되며 되돌릴 수 없습니다.',
+                confirmLabel: '영구 삭제',
+                danger: true,
+                onConfirm: () => {
+                  useGame.getState().resetSave();
+                  useUi.getState().notify({ kind: 'success', title: '저장 데이터가 삭제되었습니다.' });
+                  onReset?.();
+                },
+              });
             }}
           >
             초기화
@@ -192,6 +236,7 @@ export function ControlsPanel() {
   const rows: [string, string][] = [
     ['W A S D', '이동'],
     ['마우스', '시점 회전 (화면 클릭으로 마우스 고정)'],
+    ['방향키 / 우클릭 드래그', '시점 회전 (마우스 고정 없이)'],
     ['Space', '점프'],
     ['Shift', '달리기'],
     ['좌클릭', '기본 공격 (쿨다운 0.5초)'],

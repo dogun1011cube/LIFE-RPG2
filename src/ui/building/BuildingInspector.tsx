@@ -104,12 +104,19 @@ export function BuildingInspector() {
           <button
             className="btn btn-danger"
             onClick={() => {
-              if (!confirm(`${def.name}을(를) 철거할까요? 비용의 ${DEMOLISH_REFUND * 100}%가 반환됩니다.`)) return;
-              const r = act({ type: 'demolishBuilding', id: b.id });
-              if (r.ok) {
-                useUi.getState().inspectBuilding(null);
-                useUi.getState().notify({ kind: 'info', title: `${def.name} 철거됨` });
-              }
+              useUi.getState().askConfirm({
+                title: `${def.name}을(를) 철거할까요?`,
+                body: `건설 비용의 ${DEMOLISH_REFUND * 100}%가 반환됩니다.`,
+                confirmLabel: '철거',
+                danger: true,
+                onConfirm: () => {
+                  const r = act({ type: 'demolishBuilding', id: b.id });
+                  if (r.ok) {
+                    useUi.getState().inspectBuilding(null);
+                    useUi.getState().notify({ kind: 'info', title: `${def.name} 철거됨` });
+                  }
+                },
+              });
             }}
           >
             <Trash2 size={14} /> 철거
