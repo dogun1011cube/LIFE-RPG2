@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#cfeaff" />
+  <title>먼작귀 친구들</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="screen">
+    <div id="clouds"></div>
+
+    <header id="hud">
+      <div class="clock"><b id="clockTime">--:--</b><span id="clockDate"></span></div>
+      <div class="chips">
+        <span class="chip" id="batChip">🔋 --</span>
+        <span class="chip" id="useChip">📱 0분</span>
+      </div>
+    </header>
+
+    <section id="stage">
+      <div id="ground"></div>
+      <div id="plates"></div>
+    </section>
+
+    <div id="nagBar" class="hidden">
+      <span id="nagText">이제 그만 쓰자~</span>
+      <button id="nagOk">알겠어! 쉴게</button>
+    </div>
+
+    <button id="gearBtn" aria-label="설정">⚙</button>
+    <aside id="panel" class="hidden">
+      <h3>설정 · 테스트</h3>
+      <label>그만 쓰자고 할 시간
+        <select id="limitSel">
+          <option value="10">10초 (테스트)</option>
+          <option value="900">15분</option>
+          <option value="1800">30분</option>
+          <option value="3600">60분</option>
+        </select>
+      </label>
+      <div class="btns">
+        <button data-test="hello">인사 보기</button>
+        <button data-test="nag">그만 쓰자 보기</button>
+        <button data-test="charge">충전(밥) 켜기</button>
+        <button data-test="unplug">충전 끄기</button>
+      </div>
+      <p id="batInfo" class="small"></p>
+    </aside>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
