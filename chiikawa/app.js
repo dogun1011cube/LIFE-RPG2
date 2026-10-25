@@ -9,50 +9,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isNight = () => { const h = new Date().getHours(); return h >= 23 || h < 6; };
 
-// ---------- 캐릭터 그림 (SVG)
-const STROKE = "#6b5b5b";
-function face({ ex1 = 38, ex2 = 62, ey = 58, er = 1 } = {}) {
-  const eye = (x) => `<ellipse class="eye" cx="${x}" cy="${ey}" rx="${3.2 * er}" ry="${4 * er}" fill="#4a3f3f"/><circle cx="${x + 1.2 * er}" cy="${ey - 1.5 * er}" r="${1.1 * er}" fill="#fff"/>`;
-  return `
-  ${eye(ex1)}${eye(ex2)}
-  <circle cx="${ex1 - 7}" cy="${ey + 8}" r="4.5" fill="#ffb3c1" opacity=".85"/><circle cx="${ex2 + 7}" cy="${ey + 8}" r="4.5" fill="#ffb3c1" opacity=".85"/>
-  <g class="tears"><ellipse cx="${ex1}" cy="${ey + 10}" rx="2.4" ry="4.5" fill="#8fd3ff"/><ellipse cx="${ex2}" cy="${ey + 10}" rx="2.4" ry="4.5" fill="#8fd3ff"/></g>
-  <path class="mouth-closed" d="M46 ${ey + 7} Q50 ${ey + 11} 54 ${ey + 7}" fill="none" stroke="${STROKE}" stroke-width="2" stroke-linecap="round"/>
-  <ellipse class="mouth-open" cx="50" cy="${ey + 9}" rx="4" ry="4.5" fill="#e8737f" stroke="${STROKE}" stroke-width="1.6"/>`;
-}
-const limbs = (fill, dy = 0) => `
-  <ellipse cx="24" cy="${70 + dy}" rx="7" ry="5" fill="${fill}" stroke="${STROKE}" stroke-width="2.2"/>
-  <ellipse cx="76" cy="${70 + dy}" rx="7" ry="5" fill="${fill}" stroke="${STROKE}" stroke-width="2.2"/>
-  <ellipse cx="38" cy="${90 + dy}" rx="9" ry="5" fill="${fill}" stroke="${STROKE}" stroke-width="2.2"/>
-  <ellipse cx="62" cy="${90 + dy}" rx="9" ry="5" fill="${fill}" stroke="${STROKE}" stroke-width="2.2"/>`;
-
-const SVGS = {
-  chiikawa: `<svg viewBox="0 0 100 100">
-    <ellipse cx="33" cy="30" rx="9" ry="12" fill="#fff" stroke="${STROKE}" stroke-width="2.5" transform="rotate(-12 33 30)"/>
-    <ellipse cx="67" cy="30" rx="9" ry="12" fill="#fff" stroke="${STROKE}" stroke-width="2.5" transform="rotate(12 67 30)"/>
-    <ellipse cx="50" cy="62" rx="33" ry="29" fill="#fff" stroke="${STROKE}" stroke-width="2.5"/>
-    ${limbs("#fff")}${face()}</svg>`,
-  hachiware: `<svg viewBox="0 0 100 100">
-    <path d="M26 42 L28 14 L46 30 Z" fill="#7fb8e8" stroke="${STROKE}" stroke-width="2.5" stroke-linejoin="round"/>
-    <path d="M74 42 L72 14 L54 30 Z" fill="#7fb8e8" stroke="${STROKE}" stroke-width="2.5" stroke-linejoin="round"/>
-    <ellipse cx="50" cy="62" rx="33" ry="29" fill="#fff" stroke="${STROKE}" stroke-width="2.5"/>
-    <path d="M20 54 Q22 32 50 32 Q78 32 80 54 Q70 46 60 50 L50 40 L40 50 Q30 46 20 54 Z" fill="#7fb8e8" stroke="${STROKE}" stroke-width="2.2" stroke-linejoin="round"/>
-    ${limbs("#fff")}${face({ ey: 62 })}</svg>`,
-  usagi: `<svg viewBox="0 0 100 100">
-    <ellipse cx="36" cy="18" rx="8" ry="22" fill="#fff3b0" stroke="${STROKE}" stroke-width="2.5" transform="rotate(-8 36 18)"/>
-    <ellipse cx="64" cy="18" rx="8" ry="22" fill="#fff3b0" stroke="${STROKE}" stroke-width="2.5" transform="rotate(8 64 18)"/>
-    <ellipse cx="36" cy="20" rx="3.5" ry="14" fill="#ffd6dc" transform="rotate(-8 36 20)"/>
-    <ellipse cx="64" cy="20" rx="3.5" ry="14" fill="#ffd6dc" transform="rotate(8 64 20)"/>
-    <ellipse cx="50" cy="65" rx="32" ry="27" fill="#fff3b0" stroke="${STROKE}" stroke-width="2.5"/>
-    ${limbs("#fff3b0", 1)}${face({ ey: 62 })}</svg>`,
-  momonga: `<svg viewBox="0 0 100 100">
-    <ellipse cx="84" cy="56" rx="12" ry="24" fill="#f3f0ff" stroke="${STROKE}" stroke-width="2.5" transform="rotate(22 84 56)"/>
-    <circle cx="29" cy="33" r="11" fill="#f3f0ff" stroke="${STROKE}" stroke-width="2.5"/>
-    <circle cx="71" cy="33" r="11" fill="#f3f0ff" stroke="${STROKE}" stroke-width="2.5"/>
-    <circle cx="29" cy="33" r="5.5" fill="#ffd6dc"/><circle cx="71" cy="33" r="5.5" fill="#ffd6dc"/>
-    <ellipse cx="50" cy="63" rx="31" ry="28" fill="#f3f0ff" stroke="${STROKE}" stroke-width="2.5"/>
-    ${limbs("#f3f0ff")}${face({ ey: 60, er: 1.3 })}</svg>`,
-};
+// 캐릭터 그림(SVGS)은 chars.js에 있다
 
 // ---------- 캐릭터별 성격 · 대사 · 행동
 // t: 대사, a: 짧은 동작, sp: 특수 행동, tr: 하치와레의 통역(말을 잘 못하는 캐릭터용)
