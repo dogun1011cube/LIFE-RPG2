@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>픽셀시티</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="view"></div>
+
+  <div id="hud">
+    <div class="panel stats">
+      <div class="city-name">픽셀시티</div>
+      <div class="stat"><span class="label">자금</span><b id="money" class="num">$0</b></div>
+      <div class="stat"><span class="label">인구</span><b id="pop" class="num">0</b></div>
+      <div class="stat"><span class="label">일자리</span><b id="jobs" class="num">0</b></div>
+      <div id="date" class="date">-</div>
+    </div>
+
+    <div class="panel speed" id="speed">
+      <button class="mc-btn" data-speed="0" title="일시정지 (Space)">Ⅱ</button>
+      <button class="mc-btn" data-speed="1" title="보통">▶</button>
+      <button class="mc-btn" data-speed="2" title="빠르게">▶▶</button>
+      <button class="mc-btn" data-speed="3" title="아주 빠르게">▶▶▶</button>
+    </div>
+  </div>
+
+  <div id="side">
+    <div class="panel rci" title="구역 수요: 위로 차오를수록 그 구역에 건물이 잘 지어져요">
+      <div class="rci-title">수요</div>
+      <div class="rci-bars">
+        <div class="bar" data-k="r"><div class="fill"></div><span>R</span></div>
+        <div class="bar" data-k="c"><div class="fill"></div><span>C</span></div>
+        <div class="bar" data-k="i"><div class="fill"></div><span>I</span></div>
+      </div>
+    </div>
+    <div class="panel budget">
+      <div class="rci-title">세율</div>
+      <div class="tax-row">
+        <button class="mc-btn small" id="taxDown">−</button>
+        <b id="tax" class="num">9%</b>
+        <button class="mc-btn small" id="taxUp">+</button>
+      </div>
+      <div class="est">월 수입 <b id="income" class="num good">+0</b></div>
+      <div class="est">유지비 <b id="expense" class="num bad">-0</b></div>
+    </div>
+  </div>
+
+  <div id="menu">
+    <button class="mc-btn" id="saveBtn">저장</button>
+    <button class="mc-btn" id="newBtn">새 도시</button>
+    <button class="mc-btn" id="helpBtn">?</button>
+  </div>
+
+  <div id="cam">
+    <button class="mc-btn" id="rotL" title="왼쪽으로 회전 (Q)">⟲</button>
+    <button class="mc-btn" id="rotR" title="오른쪽으로 회전 (E)">⟳</button>
+    <button class="mc-btn" id="zoomIn" title="확대">＋</button>
+    <button class="mc-btn" id="zoomOut" title="축소">－</button>
+  </div>
+
+  <div id="hotbar-wrap">
+    <div id="tool-hint"></div>
+    <div id="hotbar"></div>
+  </div>
+
+  <div id="tooltip" class="hidden"></div>
+  <div id="info" class="panel hidden"></div>
+  <div id="toasts"></div>
+
+  <div id="modal" class="overlay hidden">
+    <div class="dialog">
+      <h1>픽셀시티</h1>
+      <p class="sub">네모난 블록으로 만드는 나만의 도시</p>
+      <div class="help">
+        <p><b>시작 방법</b>: <span class="k">2</span> 도로를 깔고, 도로 3칸 안쪽에 <span class="r">주거</span>·<span class="c">상업</span>·<span class="i">공업</span> 구역을 칠하세요. 수요가 있으면 건물이 저절로 지어지고 점점 높아져요.</p>
+        <ul>
+          <li><span class="k">1</span>~<span class="k">6</span> 도구 선택 (살펴보기·도로·주거·상업·공업·철거)</li>
+          <li><b>왼쪽 드래그</b>: 도구 사용 · <b>오른쪽 드래그</b>: 회전 · <b>휠</b>: 확대/축소</li>
+          <li><b>WASD/방향키</b>: 이동 · <b>Q/E</b>: 회전 · <b>Space</b>: 일시정지</li>
+          <li>모바일: 한 손가락 = 도구, 두 손가락 = 이동/확대</li>
+          <li>처음엔 주거(R)와 공업(I)이 필요하고, 사람이 모이면 상업(C) 수요가 생겨요.</li>
+        </ul>
+      </div>
+      <div class="dialog-buttons" id="modalButtons"></div>
+    </div>
+  </div>
+
+  <div id="loading" class="overlay"><div class="dialog"><h1>픽셀시티</h1><p class="sub" id="loadingText">월드를 만드는 중...</p></div></div>
+
+  <script>
+    window.addEventListener('error', function (e) {
+      var t = document.getElementById('loadingText');
+      if (t && !window.__pixelcityStarted) t.textContent = '오류가 발생했어요: ' + (e.message || '알 수 없음');
+    });
+    setTimeout(function () {
+      var t = document.getElementById('loadingText');
+      if (t && !window.__pixelcityStarted) t.textContent = '3D 엔진(three.js)을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.';
+    }, 12000);
+  </script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
