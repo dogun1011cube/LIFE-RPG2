@@ -580,3 +580,20 @@
   filter: drop-shadow(1px 1px 0 #000);
   animation: cursorBounce 0.6s ease-in-out infinite;
 }
+
+/* during battles, keep toasts away from the monster nameplate */
+.game.in-battle .toasts {
+  top: 52px;
+  left: 14px;
+  right: auto;
+  width: min(280px, 40vw);
+}
+.game.in-battle .toast {
+  animation: fadeIn 0.25s ease-out;
+}
+.game.in-battle .toast.out {
+  animation: fadeOutQuick 0.3s ease-in forwards;
+}
+@keyframes fadeOutQuick {
+  to { opacity: 0; }
+}

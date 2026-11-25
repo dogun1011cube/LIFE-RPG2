@@ -248,8 +248,6 @@ export class BattleScene {
     m.shakeUntil = now + (crit ? 300 : 180);
     if (m.slime) m.cut = { t0: now, alive: !dies };
     const c = this.monsterCenter();
-    const slimeColors = [m.img.getContext('2d') ? '#b2f2bb' : '#fff'];
-    void slimeColors;
     this.burst(c.x, c.y, crit ? ['#ffe066', '#ffffff', '#ff922b'] : ['#ffffff', '#dee2e6'], crit ? 22 : 12, crit ? 110 : 70, 120);
     if (crit) {
       this.shake(260, 4);
@@ -324,7 +322,7 @@ export class BattleScene {
         break;
       }
       case 'mCharge': {
-        if (m) m.charging = true;
+        if (m && ev.charge) m.charging = true;
         const c = this.monsterCenter();
         this.burst(c.x, c.y, ['#7048e8', '#212529', '#ff4d6d'], 18, 50, -30);
         this.text('!', c.x, c.y - c.h / 2 - 6, '#ff4d6d', 20, undefined, 800);
@@ -652,7 +650,7 @@ export class BattleScene {
       sy = 1 + 0.06 * k;
       sx = 1 - 0.045 * k;
     }
-    let offY = m.float ? Math.sin(t * 2.2) * 4 - 8 : m.slime ? 0 : Math.round(Math.sin(t * 2.5));
+    const offY = m.float ? Math.sin(t * 2.2) * 4 - 8 : m.slime ? 0 : Math.round(Math.sin(t * 2.5));
     let shakeX = 0;
     if (now < m.shakeUntil) shakeX = Math.round((Math.random() - 0.5) * 6);
     // squash after reforming
@@ -672,12 +670,15 @@ export class BattleScene {
 
     // charging aura
     if (m.charging) {
-      const pulse = 0.35 + 0.25 * Math.sin(t * 12);
-      ctx.fillStyle = `rgba(112,72,232,${pulse})`;
-      ctx.fillRect(Math.round(x - 4), Math.round(y - 4), Math.round(w + 8), Math.round(h + 8));
-      ctx.globalAlpha = 0.5;
-      ctx.drawImage(silhouette(img, '#ff4d6d'), Math.round(x - 2), Math.round(y - 2), Math.round(w + 4), Math.round(h + 4));
+      // pulsing dark outline + rising embers
+      const pulse = 0.45 + 0.35 * Math.sin(t * 12);
+      const sil = silhouette(img, '#7048e8');
+      ctx.globalAlpha = pulse;
+      for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) ctx.drawImage(sil, Math.round(x + dx), Math.round(y + dy), Math.round(w), Math.round(h));
+      ctx.globalAlpha = pulse * 0.6;
+      ctx.drawImage(silhouette(img, '#ff4d6d'), Math.round(x - 1), Math.round(y - 1), Math.round(w + 2), Math.round(h + 2));
       ctx.globalAlpha = 1;
+      if (Math.random() < 0.35) this.particles.push({ x: x + Math.random() * w, y: y + h, vx: 0, vy: -30 - Math.random() * 30, life: 0.7, max: 0.7, color: Math.random() < 0.5 ? '#7048e8' : '#ff4d6d', size: 2, grav: 0 });
     }
 
     ctx.globalAlpha = m.alpha;
@@ -707,8 +708,6 @@ export class BattleScene {
       ctx.drawImage(crown, Math.round(m.x + m.offX + shakeX - cw / 2), Math.round(y - chh + sc * 2), cw, chh);
     }
     ctx.globalAlpha = 1;
-    void offY;
-    offY = 0;
   }
 
   private cutState(m: SceneMonster, now: number) {

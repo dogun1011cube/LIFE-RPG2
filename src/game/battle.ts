@@ -150,7 +150,7 @@ export type BattleEvent =
   | { k: 'pBuff'; text: string }
   | { k: 'pDefend'; pMp: number }
   | { k: 'pMp'; pMp: number }
-  | { k: 'mCharge'; text: string }
+  | { k: 'mCharge'; text: string; charge?: boolean }
   | { k: 'mAttack'; dmg: number; crit: boolean; miss: boolean; fx: 'melee' | 'magic' | 'dark' | 'breath' | 'doom' | 'glitch' | 'death' | 'gold'; pHp: number; guarded: boolean }
   | { k: 'mHeal'; hp: number; mHp: number }
   | { k: 'mBuff'; text: string }
@@ -621,11 +621,11 @@ function monsterAction(b: BattleState, ev: BattleEvent[], rng: Rng, sk: string) 
       break;
     case 'darkcharge':
       m.charging = 'darkcharge';
-      ev.push({ k: 'mCharge', text: `${m.name}이(가) 어둠의 힘을 모으고 있다…! 다음 턴에 방어하라!` });
+      ev.push({ k: 'mCharge', text: `${m.name}이(가) 어둠의 힘을 모으고 있다…! 다음 턴에 방어하라!`, charge: true });
       break;
     case 'breath':
       m.charging = 'breath';
-      ev.push({ k: 'mCharge', text: `${m.name}이(가) 숨을 크게 들이마신다…! 다음 턴에 방어하라!` });
+      ev.push({ k: 'mCharge', text: `${m.name}이(가) 숨을 크게 들이마신다…! 다음 턴에 방어하라!`, charge: true });
       break;
     case 'ironwall':
       if (!m.defUp) {

@@ -4,10 +4,10 @@ import { staminaMax } from '../game/core';
 import { currentRank, deriveStats, levelProgress } from '../game/progression';
 import { claimableCount } from '../game/quests';
 import { fmtClock, todaySeconds } from '../game/study';
-import { onSaved, useGame } from '../store/store';
+import { act, onSaved, useGame } from '../store/store';
 import { Bar, PixelIcon, RankBadge, Ticker, useNow } from './components';
 import { DayFlow } from './DayFlow';
-import { BigOverlays, ConfirmHost, RealRewardWatcher, Toasts } from './overlays';
+import { askCancelReward, BigOverlays, ConfirmHost, RealRewardWatcher, Toasts } from './overlays';
 import { BattleMenu } from './screens/BattleMenu';
 import { BattleView } from './screens/BattleView';
 import { Gacha } from './screens/Gacha';
@@ -78,7 +78,7 @@ export function Game() {
   const Cur = SCREENS[ui.screen];
   const sleeping = s.day.status === 'sleeping';
   return (
-    <div className={`game ${sleeping ? 'is-sleeping' : ''}`}>
+    <div className={`game ${sleeping ? 'is-sleeping' : ''} ${ui.battle ? 'in-battle' : ''}`}>
       <Hud />
       <Nav />
       <main className="main" key={ui.transition}>
@@ -167,10 +167,19 @@ function Hud() {
           </button>
         )}
         {rr && (
-          <div className="hud-pill reward" title="현실 보상 타이머">
+          <button
+            className="hud-pill reward"
+            title="현실 보상 타이머 (클릭해서 일찍 끝내기)"
+            onClick={async () => {
+              if (await askCancelReward())
+                act((d) => {
+                  d.realReward = null;
+                });
+            }}
+          >
             <PixelIcon icon="ticket" tint="#ff8787" size={18} />
             {rr.name} {fmtClock((rr.until - now) / 1000).slice(3)}
-          </div>
+          </button>
         )}
         <span className={`save-dot ${now - saved < 1500 ? 'on' : ''}`} title="자동 저장">
           SAVED

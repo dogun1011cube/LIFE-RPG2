@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { playSfx } from '../audio/sfx';
 import { getRank } from '../data/ranks';
-import { STAT_LABEL } from '../data/subjects';
 import type { GameEvent, RankId, StudyRecord, ToastKind } from '../game/types';
 import { fmtDuration } from '../game/study';
 import { onEvents, useGame, act } from '../store/store';
@@ -331,8 +330,4 @@ export function RealRewardWatcher() {
 
 export async function askCancelReward() {
   return confirmDialog({ title: '보상 타이머 종료', text: '진행 중인 보상 타이머를 지금 끝낼까요?', ok: '끝내기' });
-}
-
-export function trainingStatName(k: keyof typeof STAT_LABEL) {
-  return STAT_LABEL[k].ko;
 }
