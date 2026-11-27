@@ -246,13 +246,8 @@ function RankUp({ data, onDone }: { data: Extract<Big, { kind: 'rank' }>; onDone
           {def.title}
         </div>
         <div className="lu-rewards on">
-          {def.perks.map((p) => (
-            <div key={p}>
-              <PixelIcon icon="lock" tint="#ffd43b" size={14} /> 해금: {p}
-            </div>
-          ))}
           <div>
-            <PixelIcon icon="bolt" tint="#9be15d" size={14} /> 기력 최대치 {def.staminaMax}
+            <PixelIcon icon="crown" tint="#ffd43b" size={14} /> 기존의 100만 배 난이도를 뚫고 도달한 명예 랭크입니다.
           </div>
         </div>
         <Btn variant="gold" size="lg" onClick={onDone} sfx="confirm" autoFocus>

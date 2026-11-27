@@ -19,9 +19,9 @@ export interface LocationDef {
 export const LOCATIONS: LocationDef[] = [
   { id: 'town', name: '시작의 마을', nameEn: 'TOWN', desc: '모험가들이 쉬어 가는 마을. 여관에서 쉬고, 상점과 소환의 제단을 이용할 수 있다.', kind: 'town', stamina: 0, bg: 'town', map: { x: 22, y: 70 } },
   { id: 'training', name: '훈련장', nameEn: 'TRAINING GROUND', desc: '허수아비를 상대로 스킬을 연습한다. 기력이 들지 않지만 보상도 없다.', kind: 'training', stamina: 0, bg: 'training', map: { x: 10, y: 45 } },
-  { id: 'forest', name: '속삭이는 숲', nameEn: 'WHISPERING FOREST', desc: '슬라임과 고블린, 도깨비불이 사는 숲. 몬스터 레벨이 나보다 조금 낮게 맞춰진다. (Lv 1~15)', kind: 'field', pool: ['slime_green', 'slime_blue', 'goblin', 'goblin_archer', 'wisp', 'slime_red'], levelRange: [1, 15], stamina: 1, bg: 'forest', map: { x: 40, y: 50 } },
-  { id: 'dungeon', name: '잊혀진 지하묘지', nameEn: 'FORGOTTEN CATACOMBS', desc: '해골과 암흑기사가 잠든 지하묘지. 좋은 장비를 떨어뜨린다. (Lv 10~50)', kind: 'field', pool: ['skeleton', 'skeleton_warrior', 'skeleton_mage', 'imp', 'dark_knight', 'gargoyle', 'wraith', 'black_paladin', 'golem'], levelRange: [10, 50], stamina: 1, bg: 'dungeon', unlock: { rank: 'D', text: '랭크 D 필요' }, map: { x: 62, y: 76 } },
-  { id: 'arena', name: '투기장', nameEn: 'ARENA', desc: '강화된 엘리트 몬스터와 싸운다. 기력 2, 보상 2배, 영웅 장비 확률 상승.', kind: 'arena', stamina: 2, bg: 'arena', unlock: { rank: 'C', floor: 13, text: '랭크 C + 탑 13층 돌파 필요' }, map: { x: 80, y: 52 } },
+  { id: 'forest', name: '속삭이는 숲', nameEn: 'WHISPERING FOREST', desc: '슬라임과 고블린, 도깨비불이 사는 숲. 몬스터 레벨이 나보다 조금 낮게 맞춰진다. (Lv 1~20)', kind: 'field', pool: ['slime_green', 'slime_blue', 'goblin', 'goblin_archer', 'wisp', 'slime_red'], levelRange: [1, 20], stamina: 1, bg: 'forest', map: { x: 40, y: 50 } },
+  { id: 'dungeon', name: '잊혀진 지하묘지', nameEn: 'FORGOTTEN CATACOMBS', desc: '해골과 암흑기사가 잠든 지하묘지. 좋은 장비를 떨어뜨린다. (Lv 10 이상, 상한 없음)', kind: 'field', pool: ['skeleton', 'skeleton_warrior', 'skeleton_mage', 'imp', 'dark_knight', 'gargoyle', 'wraith', 'black_paladin', 'golem'], levelRange: [10, 1000000], stamina: 1, bg: 'dungeon', unlock: { rank: 'D', text: 'Lv 10 · 탑 10층 · 보스 1종 달성 시 해금' }, map: { x: 62, y: 76 } },
+  { id: 'arena', name: '투기장', nameEn: 'ARENA', desc: '강화된 엘리트 몬스터와 싸운다. 기력 2, 보상 2배, 영웅 장비 확률 상승.', kind: 'arena', stamina: 2, bg: 'arena', unlock: { rank: 'C', floor: 13, text: 'Lv 15 · 탑 15층 · 보스 3종 달성 시 해금' }, map: { x: 80, y: 52 } },
   { id: 'tower', name: '시련의 탑', nameEn: 'TOWER OF TRIALS', desc: '구름 너머로 끝없이 솟은 탑. 100층 정상에 무엇이 있는지 아무도 모른다.', kind: 'tower', stamina: 2, bg: 'tower', map: { x: 58, y: 22 } },
 ];
 

@@ -1,11 +1,11 @@
 import { produce } from 'immer';
 import { useSyncExternalStore } from 'react';
 import { getItem } from '../data/items';
-import { rankIndex } from '../data/ranks';
+import { rankIndex, RANKS } from '../data/ranks';
 import { SKILLS } from '../data/skills';
 import type { Ctx } from '../game/core';
 import { addItem, clampVitals, fullHeal, GameError, gainGold, makeCtx } from '../game/core';
-import { currentRank, deriveStats, levelFromExp } from '../game/progression';
+import { currentRank, deriveStats, levelFromExp, unlockStage } from '../game/progression';
 import { detectQuestCompletion } from '../game/quests';
 import type { GameEvent, GameState } from '../game/types';
 import { addSnapshot, writeSave } from './persistence';
@@ -149,6 +149,16 @@ function postProcess(before: GameState, d: GameState, ctx: Ctx) {
     fullHeal(d);
     ctx.events.push({ type: 'levelUp', from: lvB, to: lvA, gains, rewards });
     ctx.events.push({ type: 'sfx', name: 'levelUp' });
+  }
+  // content unlock stages (base thresholds)
+  const stage = unlockStage(d);
+  if (rankIndex(stage) > rankIndex(d.stageSeen)) {
+    for (let i = rankIndex(d.stageSeen) + 1; i <= rankIndex(stage); i++) {
+      const def = RANKS[i];
+      ctx.events.push({ type: 'toast', kind: 'rank', title: 'NEW CONTENT UNLOCKED', text: def.perks.join(' · ') });
+    }
+    ctx.events.push({ type: 'sfx', name: 'rankUp' });
+    d.stageSeen = stage;
   }
   const rank = currentRank(d);
   if (rankIndex(rank) > rankIndex(d.rankSeen)) {

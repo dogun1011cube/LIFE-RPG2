@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getItem, ITEMS, RARITY_INFO, SLOT_LABEL } from '../../data/items';
 import { isEquipped } from '../../game/core';
 import type { ChestResult } from '../../game/inventory';
-import { equip, MAX_PLUS, positionsFor, sellItem, sellPrice, setCosmetic, unequip, upgradeCost, upgradeItem, UPGRADE_RATES, useItem } from '../../game/inventory';
+import { equip, MAX_PLUS, positionsFor, sellItem, sellPrice, setCosmetic, toggleLock, unequip, upgradeCost, upgradeItem, UPGRADE_RATES, useItem } from '../../game/inventory';
 import { scaledStats } from '../../game/progression';
 import { RARITIES } from '../../game/types';
 import type { EquipPosition, InventoryEntry } from '../../game/types';
@@ -71,7 +71,17 @@ export function Inventory() {
           ) : filter !== 'cosmetic' ? (
             <div className="inv-grid">
               {entries.map((e) => (
-                <ItemSlot key={e.uid} item={e.itemId} qty={e.qty} plus={e.plus} equipped={isEquipped(s, e.uid)} selected={selEntry?.uid === e.uid} onClick={() => setSel(e.uid)} />
+                <ItemSlot
+                  key={e.uid}
+                  item={e.itemId}
+                  qty={e.qty}
+                  plus={e.plus}
+                  equipped={isEquipped(s, e.uid)}
+                  locked={!!e.locked}
+                  selected={selEntry?.uid === e.uid}
+                  onClick={() => setSel(e.uid)}
+                  onRightClick={() => act((d, c) => toggleLock(d, c, e.uid))}
+                />
               ))}
               {Array.from({ length: totalSlots - entries.length }, (_, i) => (
                 <div key={'e' + i} className="slot empty" />
@@ -171,10 +181,13 @@ export function Inventory() {
                     {def.use.type === 'chest' ? '열기' : '사용'}
                   </Btn>
                 )}
+                <Btn variant="ghost" size="sm" onClick={() => act((d, c) => toggleLock(d, c, selEntry.uid))} sfx={null}>
+                  <PixelIcon icon="lock" tint={selEntry.locked ? '#ffd43b' : '#8d94c4'} size={14} /> {selEntry.locked ? '잠금 해제' : '잠금'}
+                </Btn>
                 <Btn
                   variant="ghost"
                   size="sm"
-                  disabled={eq}
+                  disabled={eq || !!selEntry.locked}
                   onClick={async () => {
                     if (RARITIES.indexOf(def.rarity) >= 3 || def.unique) {
                       const ok = await confirmDialog({ title: '판매 확인', text: `${def.name}을(를) ${sellPrice(selEntry)} G에 판매할까요?`, ok: '판매', danger: true });

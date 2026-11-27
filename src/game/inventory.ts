@@ -55,6 +55,7 @@ export function unequip(s: GameState, ctx: Ctx, pos: EquipPosition) {
 export function sellItem(s: GameState, ctx: Ctx, uid: string, qty = 1) {
   const e = entryOf(s, uid);
   if (isEquipped(s, uid)) throw new GameError('장착 중인 아이템은 판매할 수 없습니다.');
+  if (e.locked) throw new GameError('잠긴 아이템은 판매할 수 없어요. 우클릭(또는 잠금 버튼)으로 잠금을 해제하세요.');
   qty = Math.max(1, Math.min(qty, e.qty));
   const price = sellPrice(e) * qty;
   const def = getItem(e.itemId);
@@ -63,6 +64,39 @@ export function sellItem(s: GameState, ctx: Ctx, uid: string, qty = 1) {
   toast(ctx, 'gold', 'SOLD', `${def.name}${qty > 1 ? ' ×' + qty : ''} → +${price} G`);
   sfx(ctx, 'coin');
   return price;
+}
+
+// ── Lock & sell all ──────────────────────────────────────────
+export function toggleLock(s: GameState, ctx: Ctx, uid: string) {
+  const e = entryOf(s, uid);
+  e.locked = !e.locked;
+  sfx(ctx, e.locked ? 'confirm' : 'cancel');
+  return !!e.locked;
+}
+
+export type SellScope = 'equipment' | 'all';
+
+/** Everything "sell all" would sell: never equipped or locked items. */
+export function sellAllPreview(s: GameState, scope: SellScope) {
+  const entries = s.inventory.filter((e) => {
+    if (isEquipped(s, e.uid) || e.locked) return false;
+    return scope === 'all' || getItem(e.itemId).category === 'equipment';
+  });
+  const gold = entries.reduce((a, e) => a + sellPrice(e) * e.qty, 0);
+  const skippedLocked = s.inventory.filter((e) => e.locked && (scope === 'all' || getItem(e.itemId).category === 'equipment')).length;
+  const skippedEquipped = s.inventory.filter((e) => isEquipped(s, e.uid)).length;
+  const highRarity = entries.filter((e) => RARITIES.indexOf(getItem(e.itemId).rarity) >= RARITIES.indexOf('epic')).length;
+  return { entries, gold, count: entries.reduce((a, e) => a + e.qty, 0), skippedLocked, skippedEquipped, highRarity };
+}
+
+export function sellAll(s: GameState, ctx: Ctx, scope: SellScope) {
+  const p = sellAllPreview(s, scope);
+  if (!p.entries.length) throw new GameError('판매할 아이템이 없습니다. (장착·잠금 아이템은 제외돼요)');
+  for (const e of p.entries) removeEntry(s, e.uid, e.qty);
+  const g = gainGold(s, p.gold);
+  toast(ctx, 'gold', 'SOLD ALL', `${p.count}개 판매 → +${g.toLocaleString()} G (장착 ${p.skippedEquipped}·잠금 ${p.skippedLocked} 제외)`);
+  sfx(ctx, 'coin');
+  return { count: p.count, gold: g };
 }
 
 export function upgradeItem(s: GameState, ctx: Ctx, uid: string): boolean {
@@ -201,7 +235,7 @@ export function nextRarity(r: Rarity): Rarity | null {
 export function synthCandidates(s: GameState, rarity?: Rarity): InventoryEntry[] {
   return s.inventory.filter((e) => {
     const d = getItem(e.itemId);
-    return d.category === 'equipment' && !isEquipped(s, e.uid) && (!rarity || d.rarity === rarity) && d.rarity !== 'mythic';
+    return d.category === 'equipment' && !isEquipped(s, e.uid) && !e.locked && (!rarity || d.rarity === rarity) && d.rarity !== 'mythic';
   });
 }
 
@@ -230,6 +264,7 @@ export function checkSynthesis(s: GameState, uids: string[]): SynthCheck {
   const defs = entries.map((e) => getItem(e!.itemId));
   if (defs.some((d) => d.category !== 'equipment')) return { ok: false, reason: '장비만 합성할 수 있습니다.' };
   if (entries.some((e) => isEquipped(s, e!.uid))) return { ok: false, reason: '장착 중인 장비는 합성 재료로 쓸 수 없습니다.' };
+  if (entries.some((e) => e!.locked)) return { ok: false, reason: '잠긴 장비는 합성 재료로 쓸 수 없습니다.' };
   const rarity = defs[0].rarity;
   if (defs.some((d) => d.rarity !== rarity)) return { ok: false, reason: '재료는 모두 같은 등급이어야 합니다.' };
   const target = nextRarity(rarity);

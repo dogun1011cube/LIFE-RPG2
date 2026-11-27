@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { getItem, RARITY_INFO, SHOP_TABS, SLOT_LABEL } from '../../data/items';
-import { getRank } from '../../data/ranks';
-import { scaledStats, currentRank } from '../../game/progression';
+import { stageReqText } from '../../data/ranks';
+import { scaledStats } from '../../game/progression';
 import { isEquipped } from '../../game/core';
-import { sellItem, sellPrice } from '../../game/inventory';
+import type { SellScope } from '../../game/inventory';
+import { sellAll, sellAllPreview, sellItem, sellPrice, toggleLock } from '../../game/inventory';
 import { buyItem, canBuy, dailyDeal, dealBought, dealPrice, shopItems } from '../../game/shop';
 import type { GameState, ItemDef, ShopTab, StatBlock } from '../../game/types';
 import { act, useGame } from '../../store/store';
 import { Btn, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win } from '../components';
+import { confirmDialog } from '../uiStore';
 
 export const STAT_NAMES: Record<keyof StatBlock, string> = {
   atk: 'ATK',
@@ -59,7 +61,22 @@ export function Shop() {
   const [sel, setSel] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [confirm, setConfirm] = useState<{ def: ItemDef; qty: number; price: number; deal?: boolean } | null>(null);
-  const rank = currentRank(s);
+  const [scope, setScope] = useState<SellScope>('equipment');
+
+  const doSellAll = async () => {
+    const p = sellAllPreview(s, scope);
+    if (!p.entries.length) return;
+    const ok = await confirmDialog({
+      title: '모두 판매',
+      text:
+        `${scope === 'equipment' ? '장비' : '모든 아이템'} ${p.count}개를 판매하고 ${p.gold.toLocaleString()} G를 받습니다.\n` +
+        `장착 중 ${p.skippedEquipped}개 · 잠금 ${p.skippedLocked}개는 판매하지 않아요.` +
+        (p.highRarity ? `\n주의: 영웅 등급 이상 ${p.highRarity}개가 포함돼 있어요. 지키고 싶은 아이템은 우클릭으로 잠그세요.` : ''),
+      ok: '모두 판매',
+      danger: true,
+    });
+    if (ok) act((d, c) => sellAll(d, c, scope));
+  };
   const deal = dailyDeal(s);
   const bought = dealBought(s);
 
@@ -158,8 +175,8 @@ export function Shop() {
                   {ok ? (
                     <b className={`num ${s.player.gold >= it.price ? 'gold-t' : 'red-t'}`}>{it.price} G</b>
                   ) : (
-                    <span className="tiny" style={{ color: getRank(it.minRank!).color }}>
-                      <PixelIcon icon="lock" tint="#868e96" size={12} /> 랭크 {it.minRank}
+                    <span className="tiny dim" title={`${stageReqText(it.minRank!)} 달성 시 해금`}>
+                      <PixelIcon icon="lock" tint="#868e96" size={12} /> {stageReqText(it.minRank!)}
                     </span>
                   )}
                 </button>
@@ -209,7 +226,7 @@ export function Shop() {
                     </button>
                   </div>
                 )}
-                {!canBuy(s, selDef) && <div className="warn-line">랭크 {selDef.minRank} 이상 필요 (현재 {rank})</div>}
+                {!canBuy(s, selDef) && <div className="warn-line">아직 해금되지 않았어요 — {stageReqText(selDef.minRank!)} 달성 시 판매</div>}
                 <Btn variant="gold" size="lg" block disabled={!canBuy(s, selDef) || s.player.gold < selDef.price * qty} onClick={() => setConfirm({ def: selDef, qty, price: selDef.price })}>
                   BUY · 구매하기
                 </Btn>
@@ -221,13 +238,36 @@ export function Shop() {
           </Win>
         </div>
       ) : (
-        <Win className="sell-list" title="SELL" sub="판매 — 가격의 40%">
+        <Win className="sell-list" title="SELL" sub="판매 — 가격의 40% · 우클릭으로 잠금">
+          <div className="sell-all-bar">
+            <select className="input" style={{ width: 150 }} value={scope} onChange={(e) => setScope(e.target.value as SellScope)}>
+              <option value="equipment">장비만</option>
+              <option value="all">전체 (소모품·특수 포함)</option>
+            </select>
+            <span className="small muted grow">
+              판매 예정 {sellAllPreview(s, scope).count}개 · <b className="gold-t">{sellAllPreview(s, scope).gold.toLocaleString()} G</b> (장착·잠금 제외)
+            </span>
+            <Btn variant="red" size="sm" disabled={!sellAllPreview(s, scope).entries.length} onClick={doSellAll} sfx={null}>
+              모두 판매
+            </Btn>
+          </div>
           {s.inventory.length === 0 && <div className="empty-state">팔 아이템이 없습니다.</div>}
           {s.inventory.map((e) => {
             const def = getItem(e.itemId);
             const eq = isEquipped(s, e.uid);
             return (
-              <div key={e.uid} className="shop-row">
+              <div
+                key={e.uid}
+                className={`shop-row ${e.locked ? 'locked-row' : ''}`}
+                onContextMenu={(ev) => {
+                  ev.preventDefault();
+                  act((d, c) => toggleLock(d, c, e.uid));
+                }}
+                title="우클릭: 잠금 / 잠금 해제"
+              >
+                <button className={`lock-btn ${e.locked ? 'on' : ''}`} onClick={() => act((d, c) => toggleLock(d, c, e.uid))} title={e.locked ? '잠금 해제' : '잠금'} aria-label={e.locked ? '잠금 해제' : '잠금'}>
+                  <PixelIcon icon="lock" tint={e.locked ? '#ffd43b' : '#5c638f'} size={16} />
+                </button>
                 <ItemIcon item={def} size={28} />
                 <span className="grow">
                   <RarityText rarity={def.rarity}>
@@ -236,9 +276,10 @@ export function Shop() {
                   </RarityText>
                   {e.qty > 1 && <span className="tiny muted"> ×{e.qty}</span>}
                   {eq && <span className="tag" style={{ marginLeft: 6, background: 'var(--gold)' }}>장착 중</span>}
+                  {e.locked && <span className="tag" style={{ marginLeft: 6, background: '#ffd43b' }}>잠금</span>}
                 </span>
                 <span className="gold-t num small">{sellPrice(e)} G</span>
-                <Btn size="sm" variant="ghost" disabled={eq} onClick={() => act((d, c) => sellItem(d, c, e.uid, 1))}>
+                <Btn size="sm" variant="ghost" disabled={eq || !!e.locked} onClick={() => act((d, c) => sellItem(d, c, e.uid, 1))}>
                   판매
                 </Btn>
               </div>

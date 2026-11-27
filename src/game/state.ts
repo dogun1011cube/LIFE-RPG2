@@ -1,5 +1,6 @@
 import { DEFAULT_SUBJECTS } from '../data/subjects';
 import type { GameState, LifetimeStats, Settings } from './types';
+import { unlockStage } from './progression';
 
 export const SAVE_VERSION = 3;
 
@@ -87,6 +88,7 @@ export function createNewGame(name: string, now = Date.now()): GameState {
     gacha: { pulls: 0, pity: 0, history: [] },
     stats: defaultStats(),
     rankSeen: 'F',
+    stageSeen: 'F',
     timer: null,
     realReward: null,
     settings: defaultSettings(),
@@ -120,6 +122,8 @@ export function fillDefaults<T>(loaded: unknown, defaults: T): T {
 export function normalizeState(raw: unknown): GameState {
   const base = createNewGame(isObj(raw) && isObj(raw.player) ? String(raw.player.name ?? '모험가') : '모험가');
   const s = fillDefaults(raw, base);
+  // saves made before unlock stages existed: don't re-announce stages already reached
+  if (isObj(raw) && raw.stageSeen === undefined) s.stageSeen = unlockStage(s);
   // Equipment slots are nullable; if the slot object came from defaults for an old save,
   // don't auto-equip starter items that the inventory doesn't contain.
   for (const pos of Object.keys(s.player.equipment) as (keyof typeof s.player.equipment)[]) {

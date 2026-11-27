@@ -7,7 +7,7 @@ import { locationUnlocked, startFieldBattle } from '../../game/encounters';
 import { deriveStats } from '../../game/progression';
 import { seeded } from '../../game/rng';
 import { act, useGame } from '../../store/store';
-import { Btn, MonsterSprite, PixelIcon, Win } from '../components';
+import { Btn, MonsterSkillInfo, MonsterSprite, PixelIcon, Win } from '../components';
 import { go, setUI } from '../uiStore';
 
 const NODE_ICON: Record<string, [string, string]> = {
@@ -243,6 +243,8 @@ export function BattleMenu() {
                       {m.nameEn} · <span style={{ color: RARITY_INFO[m.rarity].color }}>{RARITY_INFO[m.rarity].en}</span>
                     </div>
                     <p className="small">{m.desc}</p>
+                    <MonsterSkillInfo id={mon} />
+                    <div className="tiny dim">궁극기는 HP가 50% 이하가 되면 사용합니다 (보스는 25%에서 한 번 더).</div>
                     <div className="kv">
                       <span>조우</span>
                       <span>{rec.seen}회</span>

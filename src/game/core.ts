@@ -1,6 +1,6 @@
 import { getItem, RARITY_INFO } from '../data/items';
 import { getRank } from '../data/ranks';
-import { deriveStats, currentRank } from './progression';
+import { deriveStats, unlockStage } from './progression';
 import type { Rng } from './rng';
 import { uid } from './rng';
 import type { GameEvent, GameState, InventoryEntry, SfxName, ToastKind } from './types';
@@ -62,7 +62,7 @@ export function spendGold(s: GameState, amount: number) {
 }
 
 export function staminaMax(s: GameState) {
-  return getRank(currentRank(s)).staminaMax;
+  return getRank(unlockStage(s)).staminaMax;
 }
 
 /** Natural stamina gains are capped; bonus sources (quests, items) may exceed the cap. */

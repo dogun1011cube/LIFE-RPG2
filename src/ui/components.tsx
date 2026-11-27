@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { playSfx } from '../audio/sfx';
 import { getItem, RARITY_INFO } from '../data/items';
 import { getMonster } from '../data/monsters';
+import { monsterSkills } from '../data/monsterSkills';
 import { getRank } from '../data/ranks';
 import type { GameState, ItemDef, RankId, SfxName } from '../game/types';
 import { iconCanvas, monsterCanvas, spriteCanvas, toDataURL } from '../render/draw';
@@ -80,24 +81,44 @@ export function ItemIcon(props: { item: ItemDef | string; size?: number }) {
   return <PixelIcon icon={def.icon} tint={def.tint || RARITY_INFO[def.rarity].color} size={props.size ?? 36} title={def.name} />;
 }
 
-export function ItemSlot(props: { item: ItemDef | string; qty?: number; plus?: number; equipped?: boolean; selected?: boolean; onClick?: () => void; size?: number }) {
+export function ItemSlot(props: {
+  item: ItemDef | string;
+  qty?: number;
+  plus?: number;
+  equipped?: boolean;
+  selected?: boolean;
+  locked?: boolean;
+  onClick?: () => void;
+  /** Right-click handler (used to lock / unlock items). */
+  onRightClick?: () => void;
+  size?: number;
+}) {
   const def = typeof props.item === 'string' ? getItem(props.item) : props.item;
   return (
     <div
-      className={`slot rc-${def.rarity} ${props.selected ? 'sel' : ''}`}
+      className={`slot rc-${def.rarity} ${props.selected ? 'sel' : ''} ${props.locked ? 'locked' : ''}`}
       onClick={() => {
         playSfx('select');
         props.onClick?.();
       }}
+      onContextMenu={
+        props.onRightClick
+          ? (e) => {
+              e.preventDefault();
+              props.onRightClick!();
+            }
+          : undefined
+      }
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') props.onClick?.();
       }}
-      title={def.name}
+      title={props.onRightClick ? `${def.name}${props.locked ? ' (잠김)' : ''} — 우클릭: ${props.locked ? '잠금 해제' : '잠금'}` : def.name}
       style={props.size ? { width: props.size, height: props.size } : undefined}
     >
       <ItemIcon item={def} />
+      {props.locked ? <PixelIcon icon="lock" tint="#ffd43b" size={14} className="lock-badge" /> : null}
       {props.plus ? <span className="plus">+{props.plus}</span> : null}
       {props.qty && props.qty > 1 ? <span className="qty">×{props.qty}</span> : null}
       {props.equipped ? <span className="eq">E</span> : null}
@@ -208,4 +229,26 @@ export function useNow(interval = 1000) {
     return () => clearInterval(id);
   }, [interval]);
   return now;
+}
+
+// ── Monster skill info (bestiary / tower) ───────────────────
+export function MonsterSkillInfo(props: { id: string; compact?: boolean }) {
+  const kit = monsterSkills(props.id);
+  if (!kit) return null;
+  return (
+    <div className={`mskill-box ${props.compact ? 'compact' : ''}`}>
+      <div className="mskill">
+        <span className="tag" style={{ background: 'var(--cyan)' }}>고유</span> <b>{kit.sig.name}</b>
+        {!props.compact && <div className="tiny muted">{kit.sig.desc}</div>}
+      </div>
+      <div className="mskill ult">
+        <span className="tag" style={{ background: 'var(--red)', color: '#fff' }}>궁극기</span> <b>{kit.ult.name}</b>
+        {!props.compact && (
+          <div className="tiny muted">
+            {kit.ult.desc} {kit.ult.charge ? '(한 턴 전에 예고 — 방어하세요)' : '(즉시 발동)'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -6,14 +6,16 @@ import { makeCtx } from './core';
 import type { Ctx } from './core';
 import { recordStudy, todaySeconds, totalSeconds, deleteStudyRecord, previewStudyReward, deleteSubject, addDefaultSubjects } from './study';
 import { goToSleep, wakeUp, cancelSleep } from './day';
-import { expForLevel, levelFromExp, deriveStats } from './progression';
+import { expForLevel, levelFromExp, deriveStats, currentRank, unlockStage } from './progression';
 import { createBattle, resolveTurn, spawnMonster } from './battle';
 import type { BattleState } from './battle';
 import { startTowerBattle, finishBattle, startFieldBattle } from './encounters';
 import { floorInfo, floorAccess, spinSlots } from './tower';
 import { gachaPull, buyItem, autoGacha } from './shop';
 import { GACHA } from '../data/world';
-import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST } from './inventory';
+import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST, sellItem, sellAll, toggleLock } from './inventory';
+import { MONSTERS } from '../data/monsters';
+import { MONSTER_SKILLS } from '../data/monsterSkills';
 import { getItem } from '../data/items';
 import { metricValue, claimQuest } from './quests';
 import { migrateLegacy } from '../store/persistence';
@@ -410,5 +412,80 @@ describe('auto gacha', () => {
     const { out } = run(s, (d, c) => autoGacha(d, c, { stopAt: 'mythic', maxPulls: 100 }));
     expect(out.results.length).toBeGreaterThanOrEqual(3);
     expect(['gold', 'target']).toContain(out.stopReason);
+  });
+});
+
+describe('round 3: lock/sell-all, level, rank, monsters', () => {
+  it('locked items cannot be sold; sell-all skips equipped and locked items', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.inventory.push({ uid: 'k1', itemId: 'w_iron', qty: 1, plus: 0, obtainedAt: 0, locked: true });
+      d.inventory.push({ uid: 'k2', itemId: 'h_iron', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'k3', itemId: 'p_mid', qty: 4, plus: 0, obtainedAt: 0 });
+    });
+    expect(() => run(s, (d, c) => sellItem(d, c, 'k1', 1))).toThrow(/잠긴/);
+    const { s: s1, out } = run(s, (d, c) => sellAll(d, c, 'equipment'));
+    expect(out.count).toBe(1); // only the unlocked, unequipped helmet
+    expect(s1.inventory.some((e) => e.uid === 'k1')).toBe(true); // locked kept
+    expect(s1.inventory.some((e) => e.uid === 'start_w')).toBe(true); // equipped kept
+    expect(s1.inventory.some((e) => e.uid === 'k3')).toBe(true); // consumables kept in equipment scope
+    const { s: s2 } = run(s1, (d, c) => sellAll(d, c, 'all'));
+    expect(s2.inventory.map((e) => e.uid).sort()).toEqual(['k1', 'start_a', 'start_w']);
+    const { s: s3 } = run(s2, (d, c) => toggleLock(d, c, 'k1'));
+    expect(s3.inventory.find((e) => e.uid === 'k1')!.locked).toBe(false);
+  });
+
+  it('has no level cap and ATK grows in proportion to level', () => {
+    for (const lv of [99, 100, 150, 500]) expect(levelFromExp(expForLevel(lv))).toBe(lv);
+    expect(levelFromExp(expForLevel(250) - 1)).toBe(249);
+    const at = (lv: number) => deriveStats(produce(createNewGame('t'), (d) => void (d.player.totalExp = expForLevel(lv))));
+    expect(at(20).atk - at(10).atk).toBeGreaterThanOrEqual(100); // +10 per level (+STR)
+    expect(at(200).level).toBe(200);
+  });
+
+  it('character rank is 1,000,000x harder while content unlocks use the base thresholds', () => {
+    const s = produce(createNewGame('t'), (d) => {
+      d.player.totalExp = expForLevel(40);
+      d.tower.highestCleared = 30;
+      d.stats.bossesDefeated = ['reaper', 'slime_king_gold', 'goblin_king', 'guest13', 'lich', 'dk_commander'];
+    });
+    expect(currentRank(s)).toBe('F');
+    expect(unlockStage(s)).toBe('B');
+    expect(floorAccess(s, 41).ok).toBe(false);
+    expect(floorAccess(produce(s, (d) => void (d.tower.highestCleared = 40)), 41).ok).toBe(true); // stage B opens 41~60
+    expect(floorAccess(produce(s, (d) => void (d.tower.highestCleared = 60)), 61).ok).toBe(false); // stage A needs 7 bosses
+  });
+
+  it('every monster has a signature skill and an ultimate', () => {
+    for (const m of MONSTERS) if (m.family !== 'dummy') expect(MONSTER_SKILLS[m.id], m.id).toBeTruthy();
+  });
+
+  it('monsters telegraph their ultimate at 50% HP and use it the next turn', () => {
+    const s = createNewGame('t');
+    const d = deriveStats(s);
+    const m = spawnMonster('dark_knight', 1);
+    m.hp = Math.floor(m.maxHp * 0.5);
+    m.skillRate = 0;
+    let b = createBattle({ kind: 'field', locationId: 'forest', title: '', waves: [m], canEscape: true, bg: 'forest', staminaSpent: 1, modifiers: {} }, { ...d, maxHp: 99999 }, 99999, d.maxMp, 0);
+    const rng = seeded(11);
+    const r1 = resolveTurn(b, { type: 'defend' }, rng);
+    expect(r1.state.monster.charging).toBe('ult');
+    expect(r1.events.some((e) => e.k === 'mCharge')).toBe(true);
+    const r2 = resolveTurn(r1.state, { type: 'defend' }, rng);
+    expect(r2.events.some((e) => e.k === 'text' && e.text.includes('칠흑의 참격'))).toBe(true);
+    expect(r2.state.monster.ultUses).toBe(1);
+    b = r2.state;
+  });
+
+  it('poison deals damage every turn', () => {
+    const s = createNewGame('t');
+    const d = deriveStats(s);
+    const m = spawnMonster('dummy', 1);
+    let b = createBattle({ kind: 'training', locationId: 'training', title: '', waves: [m], canEscape: true, bg: 'training', staminaSpent: 0, modifiers: {} }, d, d.maxHp, d.maxMp, 0);
+    b = { ...b, player: { ...b.player, poison: { pct: 10, turns: 2 } } };
+    const r = resolveTurn(b, { type: 'defend' }, seeded(1));
+    const dot = r.events.find((e) => e.k === 'pDot');
+    expect(dot && dot.k === 'pDot' && dot.dmg).toBe(Math.round(d.maxHp * 0.1));
+    expect(r.state.player.poison!.turns).toBe(1);
   });
 });

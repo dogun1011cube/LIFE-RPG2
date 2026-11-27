@@ -39,13 +39,41 @@ export function getRank(id: RankId): RankDef {
   return RANKS[rankIndex(id)];
 }
 
-export function computeRank(level: number, floor: number, bosses: number): RankId {
+/**
+ * Character rank (F~SSS) is a prestige goal: its requirements are the base
+ * thresholds × RANK_DIFFICULTY (1,000,000×). Content unlocks (shop items, areas,
+ * tower seals, stamina cap) use the base thresholds as "unlock stages" instead,
+ * so the game stays playable. Change this one constant to tune rank difficulty.
+ */
+export const RANK_DIFFICULTY = 1_000_000;
+
+export function rankRequirement(def: RankDef, difficulty = RANK_DIFFICULTY) {
+  if (def.id === 'F') return { level: 1, floor: 0, bosses: 0 };
+  return { level: def.level * difficulty, floor: def.floor * difficulty, bosses: def.bosses * difficulty };
+}
+
+export function computeRank(level: number, floor: number, bosses: number, difficulty = RANK_DIFFICULTY): RankId {
   let r: RankId = 'F';
   for (const def of RANKS) {
-    if (level >= def.level && floor >= def.floor && bosses >= def.bosses) r = def.id;
+    const req = rankRequirement(def, difficulty);
+    if (level >= req.level && floor >= req.floor && bosses >= req.bosses) r = def.id;
     else break;
   }
   return r;
+}
+
+/** Unlock stage (base thresholds) that gates content. */
+export function computeUnlockStage(level: number, floor: number, bosses: number): RankId {
+  return computeRank(level, floor, bosses, 1);
+}
+
+/** "Lv 10 · 탑 10층 · 보스 1종" — requirement of an unlock stage. */
+export function stageReqText(id: RankId) {
+  const d = getRank(id);
+  const parts = [`Lv ${d.level}`];
+  if (d.floor) parts.push(`탑 ${d.floor}층`);
+  if (d.bosses) parts.push(`보스 ${d.bosses}종`);
+  return parts.join(' · ');
 }
 
 export function nextRank(id: RankId): RankDef | null {
