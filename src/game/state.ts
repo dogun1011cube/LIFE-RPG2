@@ -23,6 +23,8 @@ export function defaultStats(): LifetimeStats {
     itemsUsed: 0,
     upgradesSucceeded: 0,
     daysCompleted: 0,
+    synthesized: 0,
+    autoGachaRuns: 0,
   };
 }
 
@@ -133,11 +135,9 @@ export function normalizeState(raw: unknown): GameState {
   if (!Array.isArray(s.study)) s.study = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
   if (!Array.isArray(s.dayHistory)) s.dayHistory = [];
-  if (!Array.isArray(s.subjects) || s.subjects.length === 0) s.subjects = DEFAULT_SUBJECTS.map((x) => ({ ...x }));
-  // make sure every default subject exists (new defaults added in updates)
-  for (const d of DEFAULT_SUBJECTS) {
-    if (!s.subjects.some((x) => x.name === d.name)) s.subjects.push({ ...d });
-  }
+  if (!Array.isArray(s.subjects)) s.subjects = DEFAULT_SUBJECTS.map((x) => ({ ...x }));
+  // NOTE: default subjects are only used for brand-new games. An existing save keeps its own
+  // subject list (the player may have deleted defaults on purpose).
   // any subject referenced in records but missing from the list → add as custom
   for (const r of s.study) {
     if (!s.subjects.some((x) => x.name === r.subject)) {

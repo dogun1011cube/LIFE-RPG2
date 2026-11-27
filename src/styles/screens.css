@@ -2233,3 +2233,108 @@
     font-size: 36px;
   }
 }
+
+/* ═════════════ SYNTHESIS ═════════════ */
+.synth-bench {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding: 14px;
+  background: radial-gradient(circle at 50% 50%, rgba(155, 107, 255, 0.18), transparent 70%), #070a1e;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.synth-mats {
+  display: flex;
+  gap: 8px;
+}
+.synth-empty {
+  font-size: 22px;
+  color: var(--dim);
+}
+.synth-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 22px;
+  animation: cursorBounce 0.8s ease-in-out infinite;
+}
+.synth-out {
+  --rc: #fff;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, color-mix(in srgb, var(--rc) 30%, transparent), #070a1e 70%);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 50%, transparent);
+  animation: pulseGlow 1.6s infinite;
+  --glow: var(--rc);
+}
+.synth-result {
+  --rc: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 10px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--rc) 25%, transparent), transparent 70%);
+  animation: pop 0.4s ease-out;
+}
+
+/* ═════════════ AUTO SUMMON ═════════════ */
+.auto-panel {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(229, 72, 77, 0.07);
+  box-shadow: inset 0 0 0 2px rgba(229, 72, 77, 0.45);
+}
+.auto-reveal {
+  margin: 12px 0;
+}
+.auto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 4px;
+  max-height: 210px;
+  overflow: auto;
+}
+.auto-cell {
+  --rc: #c3c8d4;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: #070a1e;
+  box-shadow: inset 0 0 0 2px var(--rc);
+  animation: pop 0.2s ease-out;
+}
+.auto-cell.rc-common {
+  box-shadow: inset 0 0 0 1px #3c4697;
+}
+.auto-cell.best {
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px var(--rc), 0 0 14px var(--rc);
+  animation: pulseGlow 1.2s infinite;
+  --glow: var(--rc);
+}
+.auto-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  text-align: center;
+  animation: rise 0.3s ease-out;
+}
+.auto-best {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #070a1e;
+  box-shadow: inset 0 0 0 2px var(--gold3);
+}

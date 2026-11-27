@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react';
 import { playSfx } from '../../audio/sfx';
 import { getItem, RARITY_INFO } from '../../data/items';
 import { GACHA } from '../../data/world';
-import type { GachaResult } from '../../game/shop';
-import { gachaPull } from '../../game/shop';
+import type { AutoGachaResult, GachaResult } from '../../game/shop';
+import { autoGacha, autoGachaMaxCost, gachaPull } from '../../game/shop';
+import type { Rarity } from '../../game/types';
 import { RARITIES } from '../../game/types';
 import { act, useGame } from '../../store/store';
 import { Btn, ItemIcon, RarityText, Win } from '../components';
+import { confirmDialog } from '../uiStore';
+
+const AUTO_TARGETS: Rarity[] = ['rare', 'epic', 'legendary', 'mythic'];
+const STOP_TEXT: Record<AutoGachaResult['stopReason'], string> = {
+  target: '목표 등급 획득! 자동 소환을 멈췄습니다.',
+  max: '설정한 최대 횟수에 도달했습니다.',
+  gold: '골드가 부족해 자동 소환을 멈췄습니다.',
+};
 
 type Phase = 'idle' | 'charge' | 'reveal';
 
@@ -16,6 +25,9 @@ export function Gacha() {
   const [results, setResults] = useState<GachaResult[]>([]);
   const [flipped, setFlipped] = useState(0);
   const [tab, setTab] = useState<'rates' | 'history'>('rates');
+  const [auto, setAuto] = useState<AutoGachaResult | null>(null);
+  const [autoTarget, setAutoTarget] = useState<Rarity>('legendary');
+  const [autoMax, setAutoMax] = useState<number>(30);
 
   const best = results.reduce((a, r) => Math.max(a, RARITIES.indexOf(r.rarity)), 0);
   const bestColor = RARITY_INFO[RARITIES[best]].color;
@@ -23,6 +35,7 @@ export function Gacha() {
   const pull = (n: 1 | 10) => {
     const r = act((d, c) => gachaPull(d, c, n));
     if (!r.ok) return;
+    setAuto(null);
     setResults(r.value);
     setFlipped(0);
     setPhase('charge');
@@ -35,19 +48,37 @@ export function Gacha() {
     return () => clearTimeout(t);
   }, [phase]);
 
+  const startAuto = async () => {
+    const maxCost = autoGachaMaxCost(autoMax);
+    const ok = await confirmDialog({
+      title: '자동 소환',
+      text: `${RARITY_INFO[autoTarget].ko} 이상이 나올 때까지 최대 ${autoMax}회 자동으로 소환합니다.\n1회 ${GACHA.auto} G (일반 소환 ${GACHA.single} G보다 비쌈) · 최대 ${maxCost.toLocaleString()} G\n목표 등급이 나오거나 골드가 떨어지면 바로 멈춥니다.`,
+      ok: '자동 소환 시작',
+    });
+    if (!ok) return;
+    const r = act((d, c) => autoGacha(d, c, { stopAt: autoTarget, maxPulls: autoMax }));
+    if (!r.ok) return;
+    setAuto(r.value);
+    setResults(r.value.results);
+    setFlipped(0);
+    setPhase('charge');
+    playSfx('gachaCharge');
+  };
+
   useEffect(() => {
     if (phase !== 'reveal' || flipped >= results.length) return;
+    const isAuto = !!auto;
     const t = setTimeout(
       () => {
         const r = results[flipped];
         const ri = RARITIES.indexOf(r.rarity);
-        playSfx(ri >= 4 ? 'gachaLegend' : ri >= 2 ? 'gachaRare' : 'gachaReveal');
+        if (!isAuto || ri >= 2 || flipped === results.length - 1) playSfx(ri >= 4 ? 'gachaLegend' : ri >= 2 ? 'gachaRare' : 'gachaReveal');
         setFlipped(flipped + 1);
       },
-      flipped === 0 ? 150 : 230,
+      isAuto ? (results.length > 40 ? 35 : 70) : flipped === 0 ? 150 : 230,
     );
     return () => clearTimeout(t);
-  }, [phase, flipped, results]);
+  }, [phase, flipped, results, auto]);
 
   const done = phase === 'reveal' && flipped >= results.length;
 
@@ -64,7 +95,45 @@ export function Gacha() {
           {phase === 'idle' && <div className="altar-hint small">골드를 바쳐 장비 · 소모품 · 외형을 소환한다</div>}
         </div>
 
-        {phase === 'reveal' && (
+        {phase === 'reveal' && auto && (
+          <div className="auto-reveal">
+            <div className="auto-grid">
+              {results.slice(0, flipped).map((r, i) => (
+                <div key={i} className={`auto-cell rc-${r.rarity} ${i === auto.bestIndex && flipped >= results.length ? 'best' : ''}`} style={{ ['--rc' as string]: RARITY_INFO[r.rarity].color } as React.CSSProperties} title={getItem(r.itemId).name}>
+                  <ItemIcon item={r.itemId} size={26} />
+                </div>
+              ))}
+            </div>
+            {done && (
+              <div className="auto-summary">
+                <div className="small gold-t">{STOP_TEXT[auto.stopReason]}</div>
+                <div className="row wrap small" style={{ gap: 10, justifyContent: 'center' }}>
+                  <span>
+                    소환 <b>{results.length}</b>회
+                  </span>
+                  <span>
+                    사용 <b className="gold-t">{auto.spent.toLocaleString()} G</b>
+                  </span>
+                  {RARITIES.map((r) => {
+                    const n = results.filter((x) => x.rarity === r).length;
+                    return n ? (
+                      <span key={r}>
+                        <RarityText rarity={r}>{RARITY_INFO[r].ko}</RarityText> {n}
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+                <div className="auto-best">
+                  <span className="tiny muted">최고 등급</span>
+                  <ItemIcon item={results[auto.bestIndex].itemId} size={40} />
+                  <RarityText rarity={results[auto.bestIndex].rarity}>{getItem(results[auto.bestIndex].itemId).name}</RarityText>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {phase === 'reveal' && !auto && (
           <div className={`gacha-cards ${results.length === 1 ? 'single' : ''}`}>
             {results.map((r, i) => {
               const def = getItem(r.itemId);
@@ -102,6 +171,40 @@ export function Gacha() {
             10회 소환 · {GACHA.multi} G <span className="kbd">희귀 1개 이상 확정</span>
           </Btn>
         </div>
+        <div className="auto-panel">
+          <div className="win-title" style={{ marginBottom: 6 }}>
+            AUTO SUMMON <span className="sub">자동 소환 · 1회 {GACHA.auto} G (프리미엄)</span>
+          </div>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <label className="small row" style={{ gap: 6 }}>
+              목표
+              <select className="input" style={{ width: 120 }} value={autoTarget} onChange={(e) => setAutoTarget(e.target.value as Rarity)}>
+                {AUTO_TARGETS.map((r) => (
+                  <option key={r} value={r}>
+                    {RARITY_INFO[r].ko} 이상
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="small row" style={{ gap: 6 }}>
+              최대
+              <select className="input" style={{ width: 90 }} value={autoMax} onChange={(e) => setAutoMax(Number(e.target.value))}>
+                {GACHA.autoMaxPulls.map((n) => (
+                  <option key={n} value={n}>
+                    {n}회
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="grow" />
+            <Btn variant="red" disabled={phase === 'charge' || (phase === 'reveal' && !done) || s.player.gold < GACHA.auto} onClick={startAuto} sfx="confirm">
+              자동 소환 시작
+            </Btn>
+          </div>
+          <div className="tiny dim" style={{ marginTop: 4 }}>
+            최대 {autoGachaMaxCost(autoMax).toLocaleString()} G · 목표 등급이 나오거나 골드가 떨어지면 자동으로 멈춰요. 편한 대신 일반 소환보다 1회당 {GACHA.auto - GACHA.single} G 비쌉니다.
+          </div>
+        </div>
         <div className="row between small" style={{ marginTop: 8 }}>
           <span>
             보유 <b className="gold-t">{s.player.gold.toLocaleString()} G</b>
@@ -138,6 +241,7 @@ export function Gacha() {
               · {GACHA.pity}회 연속으로 전설 이상이 나오지 않으면 다음 소환은 전설 확정.
               <br />· 10회 소환은 희귀 이상 1개 이상 확정.
               <br />· 같은 외형(칭호·망토·오라)이 중복되면 등급 가치의 50%를 골드로 돌려받습니다.
+              <br />· 자동 소환은 1회 {GACHA.auto} G이며 확률·천장은 동일합니다 (10회 확정 보장은 없음).
               <br />· 소환은 언제나 보상을 줍니다. 꽝은 없습니다.
             </div>
           </div>

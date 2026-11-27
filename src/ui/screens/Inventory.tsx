@@ -10,8 +10,9 @@ import { act, useGame } from '../../store/store';
 import { Btn, HeroSprite, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win } from '../components';
 import { confirmDialog } from '../uiStore';
 import { equippedFor, StatCompare } from './Shop';
+import { SynthesisPanel } from './SynthesisPanel';
 
-type Filter = 'all' | 'equipment' | 'consumable' | 'special' | 'cosmetic';
+type Filter = 'all' | 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'synth';
 
 export function Inventory() {
   const s = useGame();
@@ -20,7 +21,7 @@ export function Inventory() {
   const [chest, setChest] = useState<ChestResult | null>(null);
 
   const entries = s.inventory
-    .filter((e) => filter === 'all' || filter === 'cosmetic' || getItem(e.itemId).category === filter)
+    .filter((e) => filter === 'all' || filter === 'cosmetic' || filter === 'synth' || getItem(e.itemId).category === filter)
     .slice()
     .sort((a, b) => {
       const da = getItem(a.itemId);
@@ -31,7 +32,7 @@ export function Inventory() {
       if (da.category !== db.category) return da.category.localeCompare(db.category);
       return RARITIES.indexOf(db.rarity) - RARITIES.indexOf(da.rarity);
     });
-  const selEntry: InventoryEntry | undefined = s.inventory.find((e) => e.uid === sel) ?? (filter !== 'cosmetic' ? entries[0] : undefined);
+  const selEntry: InventoryEntry | undefined = s.inventory.find((e) => e.uid === sel) ?? (filter !== 'cosmetic' && filter !== 'synth' ? entries[0] : undefined);
   const def = selEntry ? getItem(selEntry.itemId) : null;
   const eq = selEntry ? isEquipped(s, selEntry.uid) : false;
   const eqPos = selEntry ? (Object.entries(s.player.equipment).find(([, u]) => u === selEntry.uid)?.[0] as EquipPosition | undefined) : undefined;
@@ -57,6 +58,7 @@ export function Inventory() {
                 ['consumable', '소모품'],
                 ['special', '특수'],
                 ['cosmetic', '외형'],
+                ['synth', '합성'],
               ] as [Filter, string][]
             ).map(([f, l]) => (
               <button key={f} className={`tab ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>
@@ -64,7 +66,9 @@ export function Inventory() {
               </button>
             ))}
           </div>
-          {filter !== 'cosmetic' ? (
+          {filter === 'synth' ? (
+            <SynthesisPanel />
+          ) : filter !== 'cosmetic' ? (
             <div className="inv-grid">
               {entries.map((e) => (
                 <ItemSlot key={e.uid} item={e.itemId} qty={e.qty} plus={e.plus} equipped={isEquipped(s, e.uid)} selected={selEntry?.uid === e.uid} onClick={() => setSel(e.uid)} />

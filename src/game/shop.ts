@@ -62,32 +62,88 @@ function rollRarity(ctx: Ctx): Rarity {
   return weighted(ctx.rng, GACHA.rates);
 }
 
+/** One gacha roll (pity, history, item grant). Does not charge gold. */
+function rollOnce(s: GameState, ctx: Ctx, forceRare: boolean): GachaResult {
+  let rarity = rollRarity(ctx);
+  let pity = false;
+  if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
+    rarity = 'legendary';
+    pity = true;
+  }
+  if (forceRare && RARITIES.indexOf(rarity) < 2) rarity = 'rare';
+  if (RARITIES.indexOf(rarity) >= RARITIES.indexOf('legendary')) s.gacha.pity = 0;
+  else s.gacha.pity += 1;
+  const item = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
+  const res = addItem(s, item.id, 1, ctx, false);
+  const rec: GachaRecord = { at: ctx.now, itemId: item.id, rarity: item.rarity, converted: res.converted };
+  s.gacha.history.unshift(rec);
+  return { itemId: item.id, rarity: item.rarity, converted: res.converted, pity };
+}
+
 export function gachaPull(s: GameState, ctx: Ctx, count: 1 | 10): GachaResult[] {
   const cost = count === 10 ? GACHA.multi : GACHA.single;
   spendGold(s, cost);
   const results: GachaResult[] = [];
   for (let i = 0; i < count; i++) {
-    let rarity = rollRarity(ctx);
-    let pity = false;
-    if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
-      rarity = 'legendary';
-      pity = true;
-    }
     // 10-pull guarantee: at least one Rare or better
-    if (count === 10 && i === 9 && !results.some((r) => RARITIES.indexOf(r.rarity) >= 2) && RARITIES.indexOf(rarity) < 2) {
-      rarity = 'rare';
-    }
-    if (RARITIES.indexOf(rarity) >= RARITIES.indexOf('legendary')) s.gacha.pity = 0;
-    else s.gacha.pity += 1;
-    const item = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
-    const res = addItem(s, item.id, 1, ctx, false);
-    const r: GachaResult = { itemId: item.id, rarity: item.rarity, converted: res.converted, pity };
-    results.push(r);
-    const rec: GachaRecord = { at: ctx.now, itemId: item.id, rarity: item.rarity, converted: res.converted };
-    s.gacha.history.unshift(rec);
+    const forceRare = count === 10 && i === 9 && !results.some((r) => RARITIES.indexOf(r.rarity) >= 2);
+    results.push(rollOnce(s, ctx, forceRare));
   }
   s.gacha.history = s.gacha.history.slice(0, 200);
   s.gacha.pulls += count;
   s.day.gachaPulls += count;
   return results;
+}
+
+// ── Auto summon (자동 소환) ──────────────────────────────────
+export interface AutoGachaOptions {
+  stopAt: Rarity; // stop as soon as an item of this rarity or better appears
+  maxPulls: number;
+}
+
+export interface AutoGachaResult {
+  results: GachaResult[];
+  stopReason: 'target' | 'max' | 'gold';
+  spent: number;
+  bestIndex: number;
+}
+
+export function autoGachaMaxCost(maxPulls: number) {
+  return GACHA.auto * maxPulls;
+}
+
+/**
+ * Pulls one at a time at the premium auto price until an item of `stopAt`
+ * rarity (or better) appears, `maxPulls` is reached, or gold runs out.
+ */
+export function autoGacha(s: GameState, ctx: Ctx, opts: AutoGachaOptions): AutoGachaResult {
+  const maxPulls = Math.max(1, Math.min(100, Math.floor(opts.maxPulls)));
+  if (s.player.gold < GACHA.auto) throw new GameError(`골드가 부족합니다. (자동 소환 1회 ${GACHA.auto} G)`);
+  const target = RARITIES.indexOf(opts.stopAt);
+  const results: GachaResult[] = [];
+  let spent = 0;
+  let stopReason: AutoGachaResult['stopReason'] = 'max';
+  while (results.length < maxPulls) {
+    if (s.player.gold < GACHA.auto) {
+      stopReason = 'gold';
+      break;
+    }
+    spendGold(s, GACHA.auto);
+    spent += GACHA.auto;
+    const r = rollOnce(s, ctx, false);
+    results.push(r);
+    if (RARITIES.indexOf(r.rarity) >= target) {
+      stopReason = 'target';
+      break;
+    }
+  }
+  s.gacha.history = s.gacha.history.slice(0, 200);
+  s.gacha.pulls += results.length;
+  s.day.gachaPulls += results.length;
+  s.stats.autoGachaRuns += 1;
+  let bestIndex = 0;
+  results.forEach((r, i) => {
+    if (RARITIES.indexOf(r.rarity) > RARITIES.indexOf(results[bestIndex].rarity)) bestIndex = i;
+  });
+  return { results, stopReason, spent, bestIndex };
 }

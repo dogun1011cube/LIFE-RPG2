@@ -1,11 +1,12 @@
-import { getItem, itemValue, RARITY_INFO } from '../data/items';
+import { getItem, ITEMS, itemValue, RARITY_INFO } from '../data/items';
 import { CHESTS } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, clampVitals, GameError, gainExp, gainGold, gainStamina, isEquipped, removeEntry, sfx, spendGold, toast } from './core';
 import { deriveStats } from './progression';
-import { randInt, weighted } from './rng';
+import { pick, randInt, uid as makeUid, weighted } from './rng';
 import { rollItemOfRarity } from './loot';
-import type { EquipPosition, GameState, InventoryEntry } from './types';
+import type { EquipPosition, GameState, InventoryEntry, Rarity } from './types';
+import { RARITIES } from './types';
 
 export const MAX_PLUS = 10;
 export const UPGRADE_RATES = [100, 95, 90, 80, 70, 60, 50, 40, 30, 20];
@@ -181,4 +182,107 @@ export function setCosmetic(s: GameState, ctx: Ctx, kind: 'title' | 'cape' | 'au
   if (itemId && !s.ownedCosmetics.includes(itemId)) throw new GameError('보유하지 않은 외형입니다.');
   s.player.cosmetics[kind] = itemId;
   sfx(ctx, 'confirm');
+}
+
+// ── Synthesis (합성) ─────────────────────────────────────────
+// 3 unequipped pieces of equipment of the same rarity + gold
+// → 1 random piece of equipment of the next rarity.
+// If all three materials share a slot, the result has that slot too.
+export const SYNTH_COUNT = 3;
+export const SYNTH_COST: Record<Rarity, number> = { common: 60, uncommon: 200, rare: 600, epic: 1800, legendary: 6000, mythic: 0 };
+export const SYNTH_GREAT_CHANCE = 0.1;
+
+export function nextRarity(r: Rarity): Rarity | null {
+  const i = RARITIES.indexOf(r);
+  return i >= 0 && i < RARITIES.length - 1 ? RARITIES[i + 1] : null;
+}
+
+/** Equipment entries that can be used as synthesis material. */
+export function synthCandidates(s: GameState, rarity?: Rarity): InventoryEntry[] {
+  return s.inventory.filter((e) => {
+    const d = getItem(e.itemId);
+    return d.category === 'equipment' && !isEquipped(s, e.uid) && (!rarity || d.rarity === rarity) && d.rarity !== 'mythic';
+  });
+}
+
+export function synthResultPool(target: Rarity, slot?: string) {
+  const base = ITEMS.filter((i) => i.category === 'equipment' && i.rarity === target && i.gacha && !i.unique);
+  if (slot) {
+    const same = base.filter((i) => i.slot === slot);
+    if (same.length) return same;
+  }
+  return base;
+}
+
+export interface SynthCheck {
+  ok: boolean;
+  reason?: string;
+  rarity?: Rarity;
+  target?: Rarity;
+  cost?: number;
+  slot?: string;
+}
+
+export function checkSynthesis(s: GameState, uids: string[]): SynthCheck {
+  if (new Set(uids).size !== SYNTH_COUNT || uids.length !== SYNTH_COUNT) return { ok: false, reason: `같은 등급 장비 ${SYNTH_COUNT}개를 넣어 주세요.` };
+  const entries = uids.map((u) => s.inventory.find((e) => e.uid === u));
+  if (entries.some((e) => !e)) return { ok: false, reason: '아이템을 찾을 수 없습니다.' };
+  const defs = entries.map((e) => getItem(e!.itemId));
+  if (defs.some((d) => d.category !== 'equipment')) return { ok: false, reason: '장비만 합성할 수 있습니다.' };
+  if (entries.some((e) => isEquipped(s, e!.uid))) return { ok: false, reason: '장착 중인 장비는 합성 재료로 쓸 수 없습니다.' };
+  const rarity = defs[0].rarity;
+  if (defs.some((d) => d.rarity !== rarity)) return { ok: false, reason: '재료는 모두 같은 등급이어야 합니다.' };
+  const target = nextRarity(rarity);
+  if (!target) return { ok: false, reason: '신화 등급은 더 이상 합성할 수 없습니다.' };
+  const slot = defs.every((d) => d.slot === defs[0].slot) ? defs[0].slot : undefined;
+  return { ok: true, rarity, target, cost: SYNTH_COST[rarity], slot };
+}
+
+export interface SynthResult {
+  uid: string;
+  itemId: string;
+  plus: number;
+  great: boolean;
+  sameSlot: boolean;
+}
+
+export function synthesize(s: GameState, ctx: Ctx, uids: string[]): SynthResult {
+  const chk = checkSynthesis(s, uids);
+  if (!chk.ok) throw new GameError(chk.reason);
+  spendGold(s, chk.cost!);
+  const item = pick(ctx.rng, synthResultPool(chk.target!, chk.slot));
+  const great = ctx.rng() < SYNTH_GREAT_CHANCE;
+  const plus = great ? randInt(ctx.rng, 1, 3) : 0;
+  for (const u of uids) removeEntry(s, u, 1);
+  const newUid = makeUid('i');
+  s.inventory.push({ uid: newUid, itemId: item.id, qty: 1, plus, obtainedAt: ctx.now });
+  s.stats.synthesized += 1;
+  toast(ctx, 'item', great ? 'SYNTHESIS — 대성공!' : 'SYNTHESIS SUCCESS', `${item.name}${plus ? ' +' + plus : ''} (${RARITY_INFO[item.rarity].ko})`);
+  sfx(ctx, great || RARITIES.indexOf(item.rarity) >= 4 ? 'gachaLegend' : 'gachaRare');
+  return { uid: newUid, itemId: item.id, plus, great, sameSlot: !!chk.slot };
+}
+
+/**
+ * Picks three materials of a rarity: prefers three pieces of the same slot (so the
+ * result keeps that slot), then the least valuable ones (non-unique, lowest upgrade first).
+ */
+export function autoPickSynth(s: GameState, rarity: Rarity): string[] {
+  const score = (e: InventoryEntry) => {
+    const d = getItem(e.itemId);
+    return (d.unique ? 1e9 : 0) + e.plus * 1e6 + itemValue(d, e.plus);
+  };
+  const sorted = synthCandidates(s, rarity).slice().sort((a, b) => score(a) - score(b));
+  const bySlot = new Map<string, InventoryEntry[]>();
+  for (const e of sorted) {
+    const slot = getItem(e.itemId).slot || '';
+    if (!bySlot.has(slot)) bySlot.set(slot, []);
+    bySlot.get(slot)!.push(e);
+  }
+  let best: InventoryEntry[] | null = null;
+  for (const group of bySlot.values()) {
+    if (group.length < SYNTH_COUNT) continue;
+    const trio = group.slice(0, SYNTH_COUNT);
+    if (!best || trio.reduce((a, e) => a + score(e), 0) < best.reduce((a, e) => a + score(e), 0)) best = trio;
+  }
+  return (best ?? sorted.slice(0, SYNTH_COUNT)).map((e) => e.uid);
 }

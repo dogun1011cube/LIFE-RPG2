@@ -178,6 +178,8 @@ export interface LifetimeStats {
   itemsUsed: number;
   upgradesSucceeded: number;
   daysCompleted: number;
+  synthesized: number;
+  autoGachaRuns: number;
 }
 
 export interface TowerState {
