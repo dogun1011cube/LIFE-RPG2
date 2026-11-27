@@ -1,9 +1,9 @@
 import { getItem, SLOT_LABEL } from '../../data/items';
-import { getRank, nextRank, RANKS } from '../../data/ranks';
+import { getRank, nextRank, RANK_DIFFICULTY, rankRequirement, RANKS } from '../../data/ranks';
 import { SKILLS } from '../../data/skills';
 import { STAT_LABEL } from '../../data/subjects';
 import { staminaMax } from '../../game/core';
-import { bossCount, currentRank, deriveStats, levelProgress } from '../../game/progression';
+import { bossCount, currentRank, deriveStats, levelProgress, unlockStage } from '../../game/progression';
 import { fmtDuration, totalSeconds } from '../../game/study';
 import { EQUIP_POSITIONS, STAT_KEYS } from '../../game/types';
 import { useGame } from '../../store/store';
@@ -20,6 +20,7 @@ export function Status() {
   const rank = currentRank(s);
   const rdef = getRank(rank);
   const nr = nextRank(rank);
+  const nextStage = nextRank(unlockStage(s));
   const title = heroTitle(s);
   const bosses = bossCount(s);
 
@@ -159,7 +160,7 @@ export function Status() {
           {s.legacy && <div className="tiny dim" style={{ marginTop: 8 }}>v2에서 이전된 세이브 (당시 층 기록 {s.legacy.floor}F → 기력으로 변환)</div>}
         </Win>
 
-        <Win title="RANK" sub="랭크 진행">
+        <Win title="RANK" sub="캐릭터 랭크 (명예)">
           <div className="rank-ladder">
             {RANKS.map((r) => (
               <span key={r.id} className={`rl ${r.id === rank ? 'on' : ''}`} style={{ ['--rc' as string]: r.color } as React.CSSProperties}>
@@ -170,16 +171,33 @@ export function Status() {
           {nr ? (
             <div className="col" style={{ gap: 4, marginTop: 8 }}>
               <div className="small">
-                다음 랭크 <b style={{ color: nr.color }}>{nr.id} · {nr.title}</b>
+                다음 랭크 <b style={{ color: nr.color }}>{nr.id} · {nr.title}</b> <span className="tiny dim">(기존의 {RANK_DIFFICULTY.toLocaleString()}배 난이도)</span>
               </div>
-              <Req ok={lp.level >= nr.level} label={`레벨 ${nr.level}`} cur={lp.level} />
-              <Req ok={s.tower.highestCleared >= nr.floor} label={`탑 ${nr.floor}층 돌파`} cur={s.tower.highestCleared} />
-              <Req ok={bosses >= nr.bosses} label={`보스 ${nr.bosses}종 격파`} cur={bosses} />
-              <div className="tiny muted">해금: {nr.perks.join(', ')}</div>
+              <Req ok={lp.level >= rankRequirement(nr).level} label={`레벨 ${rankRequirement(nr).level.toLocaleString()}`} cur={lp.level} />
+              <Req ok={s.tower.highestCleared >= rankRequirement(nr).floor} label={`탑 ${rankRequirement(nr).floor.toLocaleString()}층 돌파`} cur={s.tower.highestCleared} />
+              <Req ok={bosses >= rankRequirement(nr).bosses} label={`보스 ${rankRequirement(nr).bosses.toLocaleString()}종 격파`} cur={bosses} />
             </div>
           ) : (
             <div className="gold-t">최고 랭크에 도달했습니다!</div>
           )}
+        </Win>
+
+        <Win title="UNLOCKS" sub="콘텐츠 해금 단계">
+          {nextStage ? (
+            <div className="col" style={{ gap: 4 }}>
+              <div className="small">
+                다음 해금: <b className="gold-t">{nextStage.perks.join(', ')}</b>
+              </div>
+              <Req ok={lp.level >= nextStage.level} label={`레벨 ${nextStage.level}`} cur={lp.level} />
+              <Req ok={s.tower.highestCleared >= nextStage.floor} label={`탑 ${nextStage.floor}층 돌파`} cur={s.tower.highestCleared} />
+              <Req ok={bosses >= nextStage.bosses} label={`보스 ${nextStage.bosses}종 격파`} cur={bosses} />
+            </div>
+          ) : (
+            <div className="gold-t small">모든 콘텐츠가 해금되었습니다!</div>
+          )}
+          <div className="tiny dim" style={{ marginTop: 6 }}>
+            상점 품목 · 지하묘지/투기장 · 탑 봉인 · 기력 최대치는 랭크가 아니라 이 해금 단계로 열립니다.
+          </div>
         </Win>
 
         <Win title="SKILLS" sub="스킬">

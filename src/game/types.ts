@@ -87,6 +87,8 @@ export interface InventoryEntry {
   qty: number;
   plus: number; // upgrade level (+0 ~ +10)
   obtainedAt: number;
+  /** Locked items (right-click) are protected from selling and synthesis. */
+  locked?: boolean;
 }
 
 export interface SubjectDef {
@@ -238,6 +240,8 @@ export interface GameState {
   gacha: { pulls: number; pity: number; history: GachaRecord[] };
   stats: LifetimeStats;
   rankSeen: RankId;
+  /** Highest content unlock stage already announced. */
+  stageSeen: RankId;
   timer: StudyTimer | null;
   realReward: RealReward | null;
   settings: Settings;

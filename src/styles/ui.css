@@ -597,3 +597,31 @@
 @keyframes fadeOutQuick {
   to { opacity: 0; }
 }
+
+/* locked items (right-click) */
+.slot .lock-badge {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  filter: drop-shadow(1px 1px 0 #000);
+}
+.slot.locked {
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 4px var(--rc), inset 0 0 0 6px rgba(255, 212, 59, 0.35), inset 0 0 14px rgba(0, 0, 0, 0.8);
+}
+.shop-row.locked-row {
+  background: rgba(255, 212, 59, 0.05);
+  box-shadow: inset 0 0 0 2px rgba(255, 212, 59, 0.35);
+}
+.lock-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.45;
+}
+.lock-btn.on {
+  opacity: 1;
+}
+.lock-btn:hover {
+  opacity: 1;
+}

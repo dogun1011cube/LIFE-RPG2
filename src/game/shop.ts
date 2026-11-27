@@ -1,10 +1,10 @@
 import { getItem, ITEMS } from '../data/items';
-import { rankAtLeast, getRank } from '../data/ranks';
+import { rankAtLeast, stageReqText } from '../data/ranks';
 import { GACHA } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, GameError, sfx, spendGold, toast } from './core';
 import { rollItemOfRarity } from './loot';
-import { currentRank } from './progression';
+import { unlockStage } from './progression';
 import { hashStr, pick, seeded, weighted } from './rng';
 import type { GameState, GachaRecord, ItemDef, Rarity, ShopTab } from './types';
 import { RARITIES } from './types';
@@ -14,14 +14,14 @@ export function shopItems(tab: ShopTab): ItemDef[] {
 }
 
 export function canBuy(s: GameState, def: ItemDef) {
-  return rankAtLeast(currentRank(s), def.minRank);
+  return rankAtLeast(unlockStage(s), def.minRank);
 }
 
 export const DEAL_DISCOUNT = 0.3;
 
 /** A rotating "daily deal" (one per RPG day), seeded by the day number. */
 export function dailyDeal(s: GameState): ItemDef {
-  const rank = currentRank(s);
+  const rank = unlockStage(s);
   const pool = ITEMS.filter((i) => i.shop && i.shop !== 'special' && i.category === 'equipment' && rankAtLeast(rank, i.minRank));
   const rng = seeded(hashStr('deal' + s.day.number));
   return pick(rng, pool.length ? pool : ITEMS.filter((i) => i.shop === 'consumables'));
@@ -38,7 +38,7 @@ export function dealBought(s: GameState) {
 export function buyItem(s: GameState, ctx: Ctx, itemId: string, qty = 1, opts: { price?: number; deal?: boolean } = {}) {
   const def = getItem(itemId);
   if (!def.shop && opts.price === undefined) throw new GameError('판매하지 않는 아이템입니다.');
-  if (!canBuy(s, def) && !opts.deal && opts.price === undefined) throw new GameError(`랭크 ${def.minRank} 이상만 구매할 수 있습니다. (현재 ${getRank(currentRank(s)).id})`);
+  if (!canBuy(s, def) && !opts.deal && opts.price === undefined) throw new GameError(`아직 해금되지 않은 아이템입니다. (${stageReqText(def.minRank!)} 달성 시 해금)`);
   if (opts.deal && dealBought(s)) throw new GameError('오늘의 특가는 이미 구매했습니다.');
   qty = Math.max(1, Math.min(99, Math.floor(qty)));
   const unit = opts.price ?? def.price;

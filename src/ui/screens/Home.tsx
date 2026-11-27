@@ -1,7 +1,7 @@
-import { getRank, nextRank } from '../../data/ranks';
+import { getRank, nextRank, stageReqText } from '../../data/ranks';
 import { GameError, spendGold, staminaMax, fullHeal, sfx, toast } from '../../game/core';
 import { goalSeconds } from '../../game/day';
-import { currentRank, deriveStats, levelProgress } from '../../game/progression';
+import { currentRank, deriveStats, levelProgress, unlockStage } from '../../game/progression';
 import { allQuestStatus } from '../../game/quests';
 import { fmtClock, fmtDuration, todaySeconds, todaySubjects, totalSeconds } from '../../game/study';
 import { floorInfo } from '../../game/tower';
@@ -17,7 +17,9 @@ const TIPS = [
   '같은 과목을 2시간 공부할 때마다 해당 능력치가 영구히 1 오른다.',
   '공부하면 HP와 MP도 회복된다. (1분 = 1%)',
   '자정이 지나도 하루는 끝나지 않는다. 잠들고 일어날 때 새 RPG 하루가 시작된다.',
-  '암흑 기사가 힘을 모으면 다음 턴에 방어하라!',
+  '몬스터는 HP가 절반이 되면 궁극기를 예고한다. 예고가 뜨면 다음 턴에 방어하라!',
+  '아이템을 우클릭하면 잠긴다. 잠긴 아이템은 모두 판매·합성에서 보호된다.',
+  '레벨 상한은 없다. 레벨마다 공격력이 10씩 오른다.',
   '4층, 7층, 13층에는 특별한 사건이 기다린다.',
   '연속 달성 일수만큼 공부 EXP 보너스가 붙는다. (하루 +2%, 최대 +20%)',
 ];
@@ -32,7 +34,7 @@ export function Home() {
   const lp = levelProgress(s.player.totalExp);
   const rank = currentRank(s);
   const rdef = getRank(rank);
-  const nr = nextRank(rank);
+  const nextStage = nextRank(unlockStage(s));
   const today = todaySeconds(s);
   const goal = goalSeconds(s);
   const nextFloor = Math.max(1, s.tower.highestCleared + 1);
@@ -205,9 +207,9 @@ export function Home() {
               </div>
             ))}
           </div>
-          {nr && (
+          {nextStage && (
             <div className="tiny muted" style={{ marginTop: 8 }}>
-              다음 랭크 <b style={{ color: nr.color }}>{nr.id}</b>: Lv {nr.level} · {nr.floor}층 · 보스 {nr.bosses}종
+              다음 해금 ({stageReqText(nextStage.id)}): <span className="gold-t">{nextStage.perks[0]}</span>
             </div>
           )}
         </Win>

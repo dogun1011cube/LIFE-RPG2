@@ -6,7 +6,7 @@ import { spawnMonster, totalRewards } from './battle';
 import type { Ctx } from './core';
 import { addItem, GameError, gainExp, gainGold, recordMonsterSeen, sfx } from './core';
 import { rollDrop, rollItemOfRarity } from './loot';
-import { currentRank, deriveStats } from './progression';
+import { deriveStats, unlockStage } from './progression';
 import { pick, randInt } from './rng';
 import { clearFloor, floorAccess, floorInfo, isCleared } from './tower';
 import type { GameState } from './types';
@@ -27,7 +27,7 @@ function ensureHp(s: GameState) {
 export function locationUnlocked(s: GameState, id: string): boolean {
   const loc = getLocation(id);
   if (!loc.unlock) return true;
-  if (loc.unlock.rank && !rankAtLeast(currentRank(s), loc.unlock.rank)) return false;
+  if (loc.unlock.rank && !rankAtLeast(unlockStage(s), loc.unlock.rank)) return false;
   if (loc.unlock.floor && s.tower.highestCleared < loc.unlock.floor) return false;
   return true;
 }

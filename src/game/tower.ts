@@ -1,11 +1,11 @@
 import { FLOOR_BOSSES, towerPool } from '../data/monsters';
-import { rankAtLeast } from '../data/ranks';
+import { rankAtLeast, stageReqText } from '../data/ranks';
 import { ITEMS } from '../data/items';
 import type { BgId, QuizQ, SlotSymbol } from '../data/world';
 import { QUIZ, SLOT_SYMBOLS, SLOT_WEIGHTS } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, GameError, gainExp, gainGold, sfx, toast } from './core';
-import { currentRank, deriveStats } from './progression';
+import { deriveStats, unlockStage } from './progression';
 import { hashStr, pick, seeded, weighted } from './rng';
 import type { GameState, ItemDef, RankId } from './types';
 
@@ -37,8 +37,9 @@ export interface FloorInfo {
 
 export const TOWER_TOP = 100;
 
+/** Tower floor N = monster level N. */
 export function monsterLevelForFloor(f: number) {
-  return 1 + Math.floor(f * 0.62);
+  return Math.max(1, f);
 }
 
 export function zoneName(f: number) {
@@ -173,7 +174,7 @@ export function floorAccess(s: GameState, f: number): { ok: boolean; reason?: st
   if (f < 1) return { ok: false, reason: '존재하지 않는 층' };
   if (f > s.tower.highestCleared + 1) return { ok: false, reason: '아래층을 먼저 돌파하세요.' };
   const seal = sealRankFor(f);
-  if (seal && !rankAtLeast(currentRank(s), seal)) return { ok: false, reason: `봉인됨 — 랭크 ${seal} 필요` };
+  if (seal && !rankAtLeast(unlockStage(s), seal)) return { ok: false, reason: `봉인됨 — ${stageReqText(seal)} 달성 시 해제` };
   return { ok: true };
 }
 

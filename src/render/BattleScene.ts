@@ -314,6 +314,15 @@ export class BattleScene {
         await this.wait(520);
         break;
       }
+      case 'pDot': {
+        const h = this.heroCenter();
+        this.hero.flashUntil = this.now() + 140;
+        this.hero.flashColor = '#9be15d';
+        this.burst(h.x, h.y, ['#9be15d', '#5c940d', '#b57bff'], 10, 40, -20);
+        this.text(String(ev.dmg), h.x, h.y - 30, '#b2f2bb', 12, 'POISON');
+        await this.wait(420);
+        break;
+      }
       case 'pDefend': {
         this.hero.guardUntil = this.now() + 99999;
         const h = this.heroCenter();

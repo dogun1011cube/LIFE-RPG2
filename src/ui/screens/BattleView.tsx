@@ -186,6 +186,12 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
       case 'counter':
         setCounters((c) => ({ ...c, [ev.kind]: ev.value }));
         return;
+      case 'pDot':
+        playSfx('playerHurt');
+        setPHp(ev.pHp);
+        pushLog(ev.text, 'bad');
+        await scene.play(ev);
+        return;
       case 'escape':
         if (ev.ok) playSfx('cancel');
         await scene.play(ev);
@@ -325,7 +331,13 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
               </span>
             ))}
             {p.curse && <span className="buff-chip bad">저주 ATK−{p.curse.pct}% ({p.curse.turns})</span>}
-            {battle.monster.charging && <span className="buff-chip bad blink">적이 힘을 모으는 중!</span>}
+            {p.poison && <span className="buff-chip bad">중독 {p.poison.pct}%/턴 ({p.poison.turns})</span>}
+            {p.armorBreak && <span className="buff-chip bad">DEF−{p.armorBreak.pct}% ({p.armorBreak.turns})</span>}
+            {battle.monster.charging === 'ult' ? (
+              <span className="buff-chip bad blink">궁극기 준비 중! 방어하세요</span>
+            ) : battle.monster.charging ? (
+              <span className="buff-chip bad blink">적이 힘을 모으는 중!</span>
+            ) : null}
           </div>
         </div>
       </div>

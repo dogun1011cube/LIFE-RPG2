@@ -8,12 +8,12 @@ import { pick, weighted } from './rng';
 export function dropRarityWeights(level: number, boost = 0): [Rarity, number][] {
   const l = level + boost;
   const w: Record<Rarity, number> = {
-    common: Math.max(5, 60 - l * 1.6),
+    common: Math.max(5, 60 - l * 1.1),
     uncommon: 30,
-    rare: 6 + l * 0.55,
-    epic: Math.max(0, (l - 12) * 0.35),
-    legendary: Math.max(0, (l - 30) * 0.08),
-    mythic: Math.max(0, (l - 55) * 0.01),
+    rare: 6 + l * 0.4,
+    epic: Math.min(40, Math.max(0, (l - 18) * 0.3)),
+    legendary: Math.min(12, Math.max(0, (l - 48) * 0.07)),
+    mythic: Math.min(2, Math.max(0, (l - 90) * 0.01)),
   };
   return RARITIES.map((r) => [r, w[r]] as [Rarity, number]).filter(([, v]) => v > 0);
 }

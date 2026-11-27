@@ -11,7 +11,7 @@ import { seeded } from './rng';
 
 /** Builds a player at `level` with gear typical for that level and ~75% of EXP from study. */
 function playerAt(level: number, gear: string[]): GameState {
-  const plus = level >= 55 ? 6 : level >= 35 ? 4 : level >= 20 ? 2 : 0;
+  const plus = level >= 90 ? 8 : level >= 55 ? 6 : level >= 35 ? 4 : level >= 20 ? 2 : 0;
   const s = createNewGame('sim');
   s.player.totalExp = expForLevel(level);
   const studyMin = Math.round(expForLevel(level) * 0.75);
@@ -78,40 +78,40 @@ const G = {
 
 describe('balance simulation', () => {
   it('prints a difficulty table and keeps the curve sane', () => {
+    const gearFor = (lv: number) => (lv >= 60 ? G.lv60 : lv >= 40 ? G.lv40 : lv >= 25 ? G.lv25 : lv >= 15 ? G.lv15 : lv >= 10 ? G.lv10 : lv >= 5 ? G.lv5 : G.lv1);
+    const R = (label: string, lv: number, floor: number, seals?: number): [string, number, string[], number, number?] => [label, lv, gearFor(lv), floor, seals];
     const rows: [string, number, string[], number, number?][] = [
-      ['F1  Lv1', 1, G.lv1, 1],
-      ['F2  Lv2', 2, G.lv1, 2],
-      ['F6  Lv5', 5, G.lv5, 6],
-      ['F5  Lv5 elite', 5, G.lv5, 5],
-      ['F4  Lv4 (死)', 4, G.lv5, 4],
-      ['F4  Lv6 (死)', 6, G.lv5, 4],
-      ['F4  Lv7 (死)', 7, G.lv5, 4],
-      ['F4  Lv8 (死)', 8, G.lv5, 4],
-      ['F7  Lv6', 6, G.lv5, 7],
-      ['F7  Lv8', 8, G.lv5, 7],
-      ['F10 Lv7 boss', 7, G.lv5, 10],
-      ['F10 Lv10 boss', 10, G.lv10, 10],
-      ['F13 Lv10 0seal', 10, G.lv10, 13, 0],
-      ['F13 Lv12 0seal', 12, G.lv10, 13, 0],
-      ['F13 Lv12 2seal', 12, G.lv10, 13, 2],
-      ['F13 Lv14 3seal', 14, G.lv15, 13, 3],
-      ['F20 Lv15 boss', 15, G.lv15, 20],
-      ['F20 Lv18 boss', 18, G.lv15, 20],
-      ['F30 Lv21 boss', 21, G.lv25, 30],
-      ['F30 Lv25 boss', 25, G.lv25, 30],
-      ['F31 Lv22', 22, G.lv25, 31],
-      ['F50 Lv33 boss', 33, G.lv40, 50],
-      ['F50 Lv38 boss', 38, G.lv40, 50],
-      ['F70 Lv48 boss', 48, G.lv60, 70],
-      ['F100 Lv60 boss', 60, G.lv60, 100],
-      ['F100 Lv66 boss', 66, G.lv60, 100],
-      ['F100 Lv72 boss', 72, G.lv60, 100],
+      R('F1  Lv1', 1, 1),
+      R('F2  Lv2', 2, 2),
+      R('F2  Lv4', 4, 2),
+      R('F6  Lv8', 8, 6),
+      R('F5  Lv8 elite', 8, 5),
+      R('F4  Lv6 (死)', 6, 4),
+      R('F4  Lv8 (死)', 8, 4),
+      R('F4  Lv10 (死)', 10, 4),
+      R('F7  Lv9', 9, 7),
+      R('F7  Lv11', 11, 7),
+      R('F10 Lv11 boss', 11, 10),
+      R('F10 Lv14 boss', 14, 10),
+      R('F13 Lv15 0seal', 15, 13, 0),
+      R('F13 Lv17 2seal', 17, 13, 2),
+      R('F20 Lv22 boss', 22, 20),
+      R('F20 Lv26 boss', 26, 20),
+      R('F31 Lv34', 34, 31),
+      R('F30 Lv32 boss', 32, 30),
+      R('F30 Lv36 boss', 36, 30),
+      R('F50 Lv52 boss', 52, 50),
+      R('F50 Lv58 boss', 58, 50),
+      R('F70 Lv72 boss', 72, 70),
+      R('F70 Lv80 boss', 80, 70),
+      R('F100 Lv100 boss', 100, 100),
+      R('F100 Lv110 boss', 110, 100),
     ];
     const out: Record<string, { rate: number; turns: number }> = {};
     for (const [label, lv, gear, floor, seals] of rows) out[label] = winRate(lv, gear, floor, 120, seals ?? 0);
     console.table(Object.fromEntries(Object.entries(out).map(([k, v]) => [k, `${Math.round(v.rate * 100)}% (${v.turns} turns)`])));
     expect(out['F1  Lv1'].rate).toBeGreaterThan(0.9);
-    expect(out['F10 Lv10 boss'].rate).toBeGreaterThan(out['F10 Lv7 boss'].rate);
-    expect(out['F10 Lv10 boss'].rate).toBeGreaterThan(0.6);
+    expect(out['F10 Lv14 boss'].rate).toBeGreaterThan(out['F10 Lv11 boss'].rate);
+    expect(out['F10 Lv14 boss'].rate).toBeGreaterThan(0.6);
   });
 });

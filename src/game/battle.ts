@@ -1,4 +1,6 @@
 import { getMonster } from '../data/monsters';
+import type { MSkill } from '../data/monsterSkills';
+import { monsterSkills } from '../data/monsterSkills';
 import type { SkillDef } from '../data/skills';
 import { SKILLS } from '../data/skills';
 import type { BgId } from '../data/world';
@@ -11,16 +13,20 @@ import type { ConsumableEffect, DerivedStats } from './types';
 // player ~2-3 levels above a monster wins comfortably, an equal-level
 // player wins with some HP loss, and an under-levelled player loses.
 // ─────────────────────────────────────────────────────────────
+// Monster stats are tuned against the player's level-proportional ATK
+// (10 per level): monsters have a lot of HP and DEF, and hit for roughly
+// 1/7 of the HP of a player 3 levels above them.
+export const MONSTER_TUNING = { hpBase: 30, hpPerLv: 60, atkBase: 24, atkPerLv: 4.8, defBase: 6, defPerLv: 7.2, growthFrom: 20, growth: 0.006 };
+
 export function monsterBase(level: number) {
-  // mild super-linear growth past Lv 12 keeps pace with gear rarity jumps & training stats
-  const g = 1 + Math.max(0, level - 12) * 0.02;
-  const gd = 1 + Math.max(0, level - 12) * 0.012;
+  const t = MONSTER_TUNING;
+  const g = 1 + Math.max(0, level - t.growthFrom) * t.growth;
   return {
-    hp: (30 + 17.5 * level) * g,
-    atk: (16 + 4.6 * level) * g,
-    def: (4 + 3.8 * level) * gd,
-    exp: 4 + 1.5 * level,
-    gold: 3 + 1.2 * level,
+    hp: (t.hpBase + t.hpPerLv * level) * g,
+    atk: (t.atkBase + t.atkPerLv * level) * g,
+    def: (t.defBase + t.defPerLv * level) * g,
+    exp: 6 + 2.2 * level,
+    gold: 4 + 1.8 * level,
   };
 }
 
@@ -48,6 +54,8 @@ export interface MonsterInstance {
   reassembled: boolean;
   deathCount: number | null;
   doom: number | null;
+  atkBuff: number; // % from skills (rest of battle)
+  ultUses: number;
 }
 
 let mCounter = 0;
@@ -83,6 +91,8 @@ export function spawnMonster(defId: string, level: number, opts: { elite?: boole
     reassembled: false,
     deathCount: null,
     doom: null,
+    atkBuff: 0,
+    ultUses: 0,
   };
 }
 
@@ -127,6 +137,8 @@ export interface BattlePlayer {
   defending: boolean;
   buffs: Buff[];
   curse: { pct: number; turns: number } | null;
+  poison: { pct: number; turns: number } | null;
+  armorBreak: { pct: number; turns: number } | null;
 }
 
 export interface BattleState {
@@ -160,6 +172,7 @@ export type BattleEvent =
   | { k: 'counter'; kind: 'doom' | 'death'; value: number | null }
   | { k: 'escape'; ok: boolean }
   | { k: 'victory' }
+  | { k: 'pDot'; dmg: number; pHp: number; text: string }
   | { k: 'defeat' };
 
 export type PlayerAction =
@@ -194,6 +207,8 @@ export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp
       defending: false,
       buffs: [],
       curse: null,
+      poison: null,
+      armorBreak: null,
     },
     turn: 1,
     over: null,
@@ -223,7 +238,7 @@ export function playerMatk(p: BattlePlayer) {
   return p.matk * (1 + buffPct(p, 'atk') / 100);
 }
 export function playerDef(p: BattlePlayer) {
-  return p.def * (1 + buffPct(p, 'def') / 100);
+  return p.def * Math.max(0.2, 1 + (buffPct(p, 'def') - (p.armorBreak?.pct ?? 0)) / 100);
 }
 export function monsterDef(m: MonsterInstance) {
   let pct = 0;
@@ -232,7 +247,7 @@ export function monsterDef(m: MonsterInstance) {
   return m.def * Math.max(0.2, 1 + pct / 100);
 }
 export function monsterAtk(m: MonsterInstance) {
-  return m.atk * (m.enraged ? 1.25 : 1);
+  return m.atk * (1 + (m.enraged ? 0.25 : 0) + (m.atkBuff || 0) / 100);
 }
 
 function clone(b: BattleState): BattleState {
@@ -240,7 +255,13 @@ function clone(b: BattleState): BattleState {
     ...b,
     monster: { ...b.monster },
     defeated: [...b.defeated],
-    player: { ...b.player, buffs: b.player.buffs.map((x) => ({ ...x })), curse: b.player.curse ? { ...b.player.curse } : null },
+    player: {
+      ...b.player,
+      buffs: b.player.buffs.map((x) => ({ ...x })),
+      curse: b.player.curse ? { ...b.player.curse } : null,
+      poison: b.player.poison ? { ...b.player.poison } : null,
+      armorBreak: b.player.armorBreak ? { ...b.player.armorBreak } : null,
+    },
     stats: { ...b.stats },
     setup: b.setup,
   };
@@ -431,7 +452,30 @@ export function resolveTurn(input: BattleState, action: PlayerAction, rng: Rng):
     return { state: b, events: ev };
   }
 
-  // end of round: tick statuses
+  // end of round: poison damage
+  if (p.poison) {
+    const dmg = Math.max(1, Math.round((p.maxHp * p.poison.pct) / 100));
+    p.hp = Math.max(0, p.hp - dmg);
+    ev.push({ k: 'pDot', dmg, pHp: p.hp, text: `독이 퍼진다… ${dmg} 피해` });
+    p.poison.turns -= 1;
+    if (p.poison.turns <= 0) {
+      p.poison = null;
+      if (p.hp > 0) ev.push({ k: 'text', text: '독이 해독되었다.', tone: 'good' });
+    }
+    if (p.hp <= 0) {
+      b.over = 'defeat';
+      ev.push({ k: 'defeat' });
+      return { state: b, events: ev };
+    }
+  }
+  if (p.armorBreak) {
+    p.armorBreak.turns -= 1;
+    if (p.armorBreak.turns <= 0) {
+      p.armorBreak = null;
+      ev.push({ k: 'text', text: '방어력이 회복되었다.', tone: 'good' });
+    }
+  }
+  // tick statuses
   p.buffs = p.buffs.map((x) => ({ ...x, turns: x.turns - 1 })).filter((x) => x.turns > 0);
   if (p.curse) {
     p.curse.turns -= 1;
@@ -454,7 +498,7 @@ export function resolveTurn(input: BattleState, action: PlayerAction, rng: Rng):
 }
 
 // ── monster turn ─────────────────────────────────────────────
-function hitPlayer(b: BattleState, ev: BattleEvent[], rng: Rng, mult: number, fx: Extract<BattleEvent, { k: 'mAttack' }>['fx'], opts: { magic?: boolean; canMiss?: boolean; trueDmg?: number } = {}) {
+function hitPlayer(b: BattleState, ev: BattleEvent[], rng: Rng, mult: number, fx: Extract<BattleEvent, { k: 'mAttack' }>['fx'], opts: { magic?: boolean; canMiss?: boolean; trueDmg?: number; pierce?: number } = {}) {
   const p = b.player;
   const m = b.monster;
   if (opts.canMiss !== false && opts.trueDmg === undefined) {
@@ -469,7 +513,7 @@ function hitPlayer(b: BattleState, ev: BattleEvent[], rng: Rng, mult: number, fx
   if (opts.trueDmg !== undefined) {
     dmg = opts.trueDmg;
   } else {
-    const def = playerDef(p) * (opts.magic ? 0.6 : 1);
+    const def = playerDef(p) * (opts.magic ? 0.6 : 1) * (1 - (opts.pierce || 0));
     dmg = calcDamage(monsterAtk(m), def, rng, mult);
     if (rng() < 0.05) {
       crit = true;
@@ -496,22 +540,34 @@ function monsterTurn(b: BattleState, ev: BattleEvent[], rng: Rng) {
     ev.push({ k: 'mBuff', text: `${m.name}이(가) 분노했다! 공격력 상승!` });
   }
 
+  const kit = monsterSkills(m.defId);
   // execute charged attacks first
   if (m.charging) {
     const c = m.charging;
     m.charging = null;
-    if (c === 'darkcharge') {
+    if (c === 'ult' && kit) {
+      useMonsterSkill(b, ev, rng, kit.ult, true);
+    } else if (c === 'darkcharge') {
       ev.push({ k: 'text', text: '암흑 베기!!', tone: 'bad' });
       hitPlayer(b, ev, rng, 2.4, 'dark', { canMiss: false });
     } else if (c === 'breath') {
       ev.push({ k: 'text', text: '브레스가 쏟아진다!!', tone: 'bad' });
       hitPlayer(b, ev, rng, 2.2, 'breath', { magic: true, canMiss: false });
     }
+  } else if (kit && wantsUltimate(m)) {
+    // 궁극기: at ≤50% HP (bosses again at ≤25%)
+    m.ultUses += 1;
+    if (kit.ult.charge) {
+      m.charging = 'ult';
+      ev.push({ k: 'mCharge', charge: true, text: `${m.name}이(가) 궁극기 『${kit.ult.name}』을(를) 준비한다…! 다음 턴에 방어하라!` });
+    } else {
+      useMonsterSkill(b, ev, rng, kit.ult, true);
+    }
   } else {
     const usable = m.skills.filter((sk) => sk !== 'reassemble');
-    const useSkill = usable.length > 0 && rng() < m.skillRate;
-    const sk = useSkill ? pick(rng, usable) : 'attack';
-    monsterAction(b, ev, rng, sk);
+    const useSkill = (usable.length > 0 || kit) && rng() < m.skillRate;
+    if (useSkill && kit && (usable.length === 0 || rng() < 0.6)) useMonsterSkill(b, ev, rng, kit.sig, false);
+    else monsterAction(b, ev, rng, useSkill && usable.length ? pick(rng, usable) : 'attack');
   }
 
   // death sentence countdown (Reaper)
@@ -537,6 +593,67 @@ function monsterTurn(b: BattleState, ev: BattleEvent[], rng: Rng) {
       m.doom = 13;
     }
     ev.push({ k: 'counter', kind: 'doom', value: m.doom });
+  }
+}
+
+function wantsUltimate(m: MonsterInstance) {
+  if (m.hp <= 0) return false;
+  if (m.ultUses === 0 && m.hp <= m.maxHp * 0.5) return true;
+  return m.boss && m.ultUses === 1 && m.hp <= m.maxHp * 0.25;
+}
+
+/** Executes a data-driven monster skill (signature or ultimate). */
+function useMonsterSkill(b: BattleState, ev: BattleEvent[], rng: Rng, sk: MSkill, ult: boolean) {
+  const m = b.monster;
+  const p = b.player;
+  ev.push({ k: 'text', text: ult ? `궁극기 『${sk.name}』!!` : `${m.name}의 『${sk.name}』!`, tone: ult ? 'bad' : 'warn' });
+  let total = 0;
+  if (sk.power) {
+    const hits = sk.hits || 1;
+    for (let i = 0; i < hits && p.hp > 0; i++) {
+      total += hitPlayer(b, ev, rng, sk.power, sk.fx, { magic: sk.magic, pierce: sk.pierce, canMiss: !ult });
+    }
+  }
+  if (sk.truePct && p.hp > 0) {
+    total += hitPlayer(b, ev, rng, 1, sk.fx, { trueDmg: Math.max(1, Math.round((p.maxHp * sk.truePct) / 100)) });
+  }
+  if (sk.drain && total > 0) {
+    const heal = Math.round(total * sk.drain);
+    m.hp = Math.min(m.maxHp, m.hp + heal);
+    ev.push({ k: 'mHeal', hp: heal, mHp: m.hp });
+  }
+  if (sk.heal) {
+    const heal = Math.round((m.maxHp * sk.heal) / 100);
+    m.hp = Math.min(m.maxHp, m.hp + heal);
+    ev.push({ k: 'mHeal', hp: heal, mHp: m.hp });
+  }
+  if (sk.buffAtk) {
+    m.atkBuff = (m.atkBuff || 0) + sk.buffAtk;
+    ev.push({ k: 'mBuff', text: `${m.name}의 공격력이 ${sk.buffAtk}% 올랐다!` });
+  }
+  if (sk.buffDef) {
+    m.defUp = { ...sk.buffDef };
+    ev.push({ k: 'mBuff', text: `${m.name}의 방어력이 ${sk.buffDef.pct}% 올랐다! (${sk.buffDef.turns}턴)` });
+  }
+  if (p.hp <= 0) return;
+  if (sk.curse) {
+    p.curse = { ...sk.curse };
+    ev.push({ k: 'text', text: `공격력이 ${sk.curse.pct}% 떨어졌다! (${sk.curse.turns}턴)`, tone: 'bad' });
+  }
+  if (sk.armorBreak) {
+    p.armorBreak = { ...sk.armorBreak };
+    ev.push({ k: 'text', text: `방어력이 ${sk.armorBreak.pct}% 떨어졌다! (${sk.armorBreak.turns}턴)`, tone: 'bad' });
+  }
+  if (sk.poison) {
+    p.poison = { ...sk.poison };
+    ev.push({ k: 'text', text: `중독되었다! 매 턴 최대 HP의 ${sk.poison.pct}% 피해 (${sk.poison.turns}턴)`, tone: 'bad' });
+  }
+  if (sk.steal) {
+    const amount = Math.min(p.gold - b.stolenGold, 5 + m.level * 3);
+    if (amount > 0) {
+      b.stolenGold += amount;
+      ev.push({ k: 'text', text: `${amount} G를 빼앗겼다! (쓰러뜨리면 되찾는다)`, tone: 'bad' });
+    }
   }
 }
 

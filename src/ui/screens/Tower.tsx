@@ -23,7 +23,8 @@ import {
 } from '../../game/tower';
 import { FLOOR_H, floorY, renderTower, TOWER_W, towerHeight } from '../../render/TowerArt';
 import { act, useGame } from '../../store/store';
-import { Bar, Btn, ItemIcon, Modal, MonsterSprite, PixelIcon, RarityText, Win } from '../components';
+import { stageReqText } from '../../data/ranks';
+import { Bar, Btn, ItemIcon, Modal, MonsterSkillInfo, MonsterSprite, PixelIcon, RarityText, Win } from '../components';
 import { setUI, useUI } from '../uiStore';
 
 const SCALE = 2;
@@ -196,7 +197,7 @@ export function Tower() {
               <PixelIcon icon="bolt" tint="#9be15d" size={14} /> 기력 <b>{info.stamina}</b>
             </span>
             {!info.canEscape && <span className="chip" style={{ color: 'var(--red)' }}>도망 불가</span>}
-            {info.sealRank && <span className="chip gold">봉인 랭크 {info.sealRank}</span>}
+            {info.sealRank && <span className="chip gold">봉인 해제: {stageReqText(info.sealRank)}</span>}
             {cleared ? <span className="chip" style={{ color: 'var(--green)' }}>돌파 완료</span> : sel === next ? <span className="chip gold">도전 가능</span> : null}
           </div>
 
@@ -206,6 +207,7 @@ export function Tower() {
                 <div key={i} className="floor-mon">
                   <MonsterSprite id={id} scale={3} silhouette={!s.monsters[id]?.seen && !cleared} />
                   <span className="tiny">{s.monsters[id]?.seen || cleared ? getMonster(id).name : '???'}</span>
+                  {(s.monsters[id]?.seen || cleared) && <MonsterSkillInfo id={id} compact />}
                 </div>
               ))}
             </div>

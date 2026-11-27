@@ -106,7 +106,7 @@ export function SynthesisPanel() {
       {chosen.length === SYNTH_COUNT && !chk.ok && <div className="warn-line">{chk.reason}</div>}
       {chk.ok && s.player.gold < cost && <div className="warn-line">골드가 {(cost - s.player.gold).toLocaleString()} G 부족합니다.</div>}
 
-      <div className="tiny muted">재료로 쓸 수 있는 {RARITY_INFO[rarity].ko} 장비 (장착 중인 장비 제외)</div>
+      <div className="tiny muted">재료로 쓸 수 있는 {RARITY_INFO[rarity].ko} 장비 (장착 중·잠긴 장비 제외)</div>
       {cands.length === 0 ? (
         <div className="empty-state small">이 등급의 남는 장비가 없어요. 전투 전리품·보물상자·소환으로 모아 보세요.</div>
       ) : (

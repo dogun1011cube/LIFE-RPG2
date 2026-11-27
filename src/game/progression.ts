@@ -1,5 +1,5 @@
 import { getItem } from '../data/items';
-import { computeRank } from '../data/ranks';
+import { computeRank, computeUnlockStage } from '../data/ranks';
 import { STUDY_SECONDS_PER_TRAINING_POINT } from '../data/subjects';
 import type { DerivedStats, GameState, RankId, StatBlock, StatKey } from './types';
 import { EQUIP_POSITIONS, STAT_KEYS } from './types';
@@ -14,16 +14,20 @@ import { EQUIP_POSITIONS, STAT_KEYS } from './types';
 //   Lv 30 ≈ 12,800
 //   Lv 50 ≈ 33,500
 // ─────────────────────────────────────────────────────────────
-export const MAX_LEVEL = 99;
+// No level cap.
+export const ATK_PER_LEVEL = 10;
 
 export function expForLevel(level: number): number {
   if (level <= 1) return 0;
   return Math.round(25 * Math.pow(level - 1, 1.85));
 }
 
+/** Inverse of expForLevel (closed form + correction for rounding) — works for any level. */
 export function levelFromExp(totalExp: number): number {
-  let lv = 1;
-  while (lv < MAX_LEVEL && totalExp >= expForLevel(lv + 1)) lv++;
+  if (!(totalExp > 0)) return 1;
+  let lv = Math.max(1, Math.floor(1 + Math.pow(totalExp / 25, 1 / 1.85)));
+  while (lv > 1 && expForLevel(lv) > totalExp) lv--;
+  while (expForLevel(lv + 1) <= totalExp) lv++;
   return lv;
 }
 
@@ -33,7 +37,7 @@ export function levelProgress(totalExp: number) {
   const next = expForLevel(level + 1);
   const into = totalExp - cur;
   const need = Math.max(1, next - cur);
-  return { level, into, need, pct: level >= MAX_LEVEL ? 1 : Math.min(1, into / need), next };
+  return { level, into, need, pct: Math.min(1, into / need), next };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -104,8 +108,10 @@ export function deriveStats(state: GameState): DerivedStats {
   const luk = stat('luk');
   const maxHp = Math.round(90 + level * 10 + str * 3 + (gear.hp || 0));
   const maxMp = Math.round(15 + level * 2 + int * 1.2 + (gear.mp || 0));
-  const atk = Math.round(4 + str * 2 + (gear.atk || 0));
-  const matk = Math.round(4 + int * 2.2 + (gear.matk || 0));
+  // Attack grows in proportion to level: every level adds +10 ATK / +10 MATK,
+  // on top of STR/INT and equipment.
+  const atk = Math.round(ATK_PER_LEVEL * level + str * 2 + (gear.atk || 0));
+  const matk = Math.round(ATK_PER_LEVEL * level + int * 2.2 + (gear.matk || 0));
   const def = Math.round(2 + dex + str * 0.5 + (gear.def || 0));
   const crit = Math.min(75, Math.round((3 + dex * 0.15 + luk * 0.2 + (gear.crit || 0)) * 10) / 10);
   const critDmg = 1.75;
@@ -118,8 +124,14 @@ export function bossCount(state: GameState) {
   return state.stats.bossesDefeated.length;
 }
 
+/** Character rank (prestige, 1,000,000× harder). */
 export function currentRank(state: GameState): RankId {
   return computeRank(levelFromExp(state.player.totalExp), state.tower.highestCleared, bossCount(state));
+}
+
+/** Content unlock stage (base thresholds): gates shop items, areas, tower seals, stamina cap. */
+export function unlockStage(state: GameState): RankId {
+  return computeUnlockStage(levelFromExp(state.player.totalExp), state.tower.highestCleared, bossCount(state));
 }
 
 export { STAT_KEYS };
