@@ -33,6 +33,8 @@ export function getLocation(id: string) {
 export const GACHA = {
   single: 150,
   multi: 1350,
+  auto: 250, // per pull — auto summon is a premium convenience (single 150, 10-pull 135)
+  autoMaxPulls: [10, 30, 50, 100] as const,
   pity: 60, // guaranteed Legendary+ after this many pulls without one
   rates: [
     ['common', 45],

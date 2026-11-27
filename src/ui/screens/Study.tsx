@@ -4,6 +4,10 @@ import { goalSeconds } from '../../game/day';
 import { subjectTotals } from '../../game/progression';
 import {
   addCustomSubject,
+  addDefaultSubjects,
+  deleteSubject,
+  MAX_DAY_SECONDS,
+  restoreSubject,
   clearTimer,
   deleteStudyRecord,
   fmtClock,
@@ -69,6 +73,7 @@ export function Study() {
   const seconds = h * 3600 + m * 60 + (showSec ? sec : 0);
   const preview = previewStudyReward(s, seconds);
   const today = todaySeconds(s);
+  const dayLeft = Math.max(0, MAX_DAY_SECONDS - today);
   const goal = goalSeconds(s);
   const totals = useMemo(() => subjectTotals(s), [s.study]); // eslint-disable-line react-hooks/exhaustive-deps
   const todaySub = todaySubjects(s);
@@ -196,7 +201,16 @@ export function Study() {
             )}
           </div>
 
-          <Btn variant="gold" size="lg" block onClick={submit} disabled={sleeping || seconds < 60 || !resolved} sfx={null}>
+          {seconds > dayLeft ? (
+            <div className="warn-line">
+              RPG 하루에는 최대 24시간까지 기록할 수 있어요. 오늘 남은 시간: <b>{dayLeft >= 60 ? fmtDuration(dayLeft, true) : '없음'}</b>
+            </div>
+          ) : (
+            <div className="tiny dim" style={{ marginBottom: 6 }}>
+              오늘 더 기록할 수 있는 시간: {fmtDuration(dayLeft, true)} (RPG 하루 최대 24시간)
+            </div>
+          )}
+          <Btn variant="gold" size="lg" block onClick={submit} disabled={sleeping || seconds < 60 || !resolved || seconds > dayLeft} sfx={null}>
             <PixelIcon icon="book" tint="#2a1a00" size={20} /> RECORD STUDY {seconds >= 60 ? `· ${resolved} ${fmtDuration(seconds, showSec)}` : ''}
           </Btn>
           <div className="tiny dim" style={{ marginTop: 6 }}>
@@ -290,7 +304,7 @@ export function Study() {
           {tab === 'subjects' && (
             <div className="subj-table">
               {s.subjects
-                .filter((x) => !x.hidden || totals[x.name])
+                .filter((x) => !x.hidden)
                 .sort((a, b) => (totals[b.name] || 0) - (totals[a.name] || 0))
                 .map((x) => {
                   const total = totals[x.name] || 0;
@@ -314,19 +328,69 @@ export function Study() {
                           <Bar kind="st" value={into} max={STUDY_SECONDS_PER_TRAINING_POINT} size="thin" className="grow" />
                         </div>
                       </div>
-                      {x.custom && (
-                        <button className="btn ghost sm" title={x.hidden ? '다시 표시' : '목록에서 숨기기'} onClick={() => act((d) => {
-                          const sub = d.subjects.find((y) => y.name === x.name);
-                          if (sub) sub.hidden = !sub.hidden;
-                        })}>
-                          {x.hidden ? '표시' : '숨김'}
-                        </button>
-                      )}
+                      <button
+                        className="btn ghost sm"
+                        title="과목 삭제"
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: '과목 삭제',
+                            text:
+                              total > 0
+                                ? `「${x.name}」을(를) 과목 목록에서 삭제할까요?\n이 과목의 공부 기록(누적 ${fmtDuration(total)})과 그동안 얻은 EXP·능력치는 그대로 유지됩니다.\n같은 이름을 다시 입력하면 언제든 복구돼요.`
+                                : `「${x.name}」을(를) 과목 목록에서 삭제할까요?\n(아직 공부 기록이 없는 과목입니다)`,
+                            ok: '삭제',
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          act((d, c) => {
+                            const res = deleteSubject(d, x.name);
+                            c.events.push({ type: 'toast', kind: 'study', title: '과목 삭제', text: res.kept ? `${x.name} (기록은 유지)` : x.name });
+                          });
+                          if (subject === x.name) setSubject('');
+                        }}
+                      >
+                        삭제
+                      </button>
                     </div>
                   );
                 })}
+              {s.subjects.filter((x) => !x.hidden).length === 0 && <div className="empty-state small">과목이 없어요. 아래에서 추가하거나 수능 과목을 불러오세요.</div>}
+              {s.subjects.some((x) => x.hidden) && (
+                <details className="hist-item">
+                  <summary className="small muted">삭제된 과목 {s.subjects.filter((x) => x.hidden).length}개 (공부 기록은 유지 중)</summary>
+                  <div className="col" style={{ gap: 4, marginTop: 6 }}>
+                    {s.subjects
+                      .filter((x) => x.hidden)
+                      .map((x) => (
+                        <div key={x.name} className="row small">
+                          <span className="dot" style={{ background: x.color }} />
+                          <span className="grow">
+                            {x.name} <span className="tiny dim">누적 {fmtDuration(totals[x.name] || 0)}</span>
+                          </span>
+                          <button className="btn ghost sm" onClick={() => act((d) => restoreSubject(d, x.name))}>
+                            복구
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </details>
+              )}
+              <div className="row wrap" style={{ marginTop: 6 }}>
+                <Btn
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    act((d, c) => {
+                      const n = addDefaultSubjects(d);
+                      c.events.push({ type: 'toast', kind: 'study', title: n ? '수능 과목 불러오기' : '이미 모두 있어요', text: n ? `${n}개 과목을 추가했어요.` : '수능 과목이 이미 목록에 있습니다.' });
+                    })
+                  }
+                >
+                  수능 과목 불러오기
+                </Btn>
+              </div>
               <div className="sep" />
-              <div className="tiny muted">새 과목 추가 (같은 이름은 자동으로 합쳐져요: 화2 = 화학2)</div>
+              <div className="tiny muted">새 과목 추가 (같은 과목은 자동으로 합쳐져요: 화2 = 화학Ⅱ = Chemistry II)</div>
               <div className="row wrap" style={{ marginTop: 4 }}>
                 <input className="input grow" style={{ minWidth: 140 }} placeholder="과목 이름" value={newSub} onChange={(e) => setNewSub(e.target.value)} />
                 <select className="input" style={{ width: 110 }} value={newStat} onChange={(e) => setNewStat(e.target.value as StatKey)}>
@@ -342,7 +406,7 @@ export function Study() {
                   onClick={() => {
                     const r = act((d, c) => {
                       const res = addCustomSubject(d, newSub, newStat);
-                      c.events.push({ type: 'toast', kind: 'study', title: res.created ? '과목 추가' : '이미 있는 과목', text: res.name });
+                      c.events.push({ type: 'toast', kind: 'study', title: res.created ? '과목 추가' : res.restored ? '과목 복구' : '이미 있는 과목', text: res.name });
                       return res;
                     });
                     if (r.ok) {

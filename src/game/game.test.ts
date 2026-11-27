@@ -4,15 +4,17 @@ import { canonicalSubject } from '../data/subjects';
 import { createNewGame, normalizeState } from './state';
 import { makeCtx } from './core';
 import type { Ctx } from './core';
-import { recordStudy, todaySeconds, totalSeconds, deleteStudyRecord, previewStudyReward } from './study';
+import { recordStudy, todaySeconds, totalSeconds, deleteStudyRecord, previewStudyReward, deleteSubject, addDefaultSubjects } from './study';
 import { goToSleep, wakeUp, cancelSleep } from './day';
 import { expForLevel, levelFromExp, deriveStats } from './progression';
 import { createBattle, resolveTurn, spawnMonster } from './battle';
 import type { BattleState } from './battle';
 import { startTowerBattle, finishBattle, startFieldBattle } from './encounters';
 import { floorInfo, floorAccess, spinSlots } from './tower';
-import { gachaPull, buyItem } from './shop';
-import { equip, upgradeItem, useItem } from './inventory';
+import { gachaPull, buyItem, autoGacha } from './shop';
+import { GACHA } from '../data/world';
+import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST } from './inventory';
+import { getItem } from '../data/items';
 import { metricValue, claimQuest } from './quests';
 import { migrateLegacy } from '../store/persistence';
 import { seeded } from './rng';
@@ -27,17 +29,48 @@ function run<T>(s: GameState, fn: (d: GameState, ctx: Ctx) => T, ctx = makeCtx(s
 }
 
 describe('subjects', () => {
-  it('treats 화2 / 화학2 / Chemistry II as the same subject', () => {
-    expect(canonicalSubject('화2')).toBe('화학2');
-    expect(canonicalSubject('화학 2')).toBe('화학2');
-    expect(canonicalSubject('화학II')).toBe('화학2');
-    expect(canonicalSubject('Chemistry II')).toBe('화학2');
-    expect(canonicalSubject('chem2')).toBe('화학2');
-    expect(canonicalSubject('화1')).toBe('화학1');
-    expect(canonicalSubject('물2')).toBe('물리2');
+  const legacyList = ['화학1', '화학2', '물리1', '물리2', '수학', '기하', 'KJSO'].map((name) => ({ name, en: name, stat: 'int' as const, color: '#fff' }));
+
+  it('new games start with 수능 subjects', () => {
+    const s = createNewGame('t');
+    const names = s.subjects.map((x) => x.name);
+    for (const n of ['국어', '수학', '영어', '한국사', '물리학Ⅰ', '화학Ⅱ', '생명과학Ⅰ', '지구과학Ⅱ', '사회탐구']) expect(names).toContain(n);
+  });
+
+  it('treats 화2 / 화학2 / 화학Ⅱ / Chemistry II as the same subject (new list)', () => {
+    for (const raw of ['화2', '화학2', '화학 2', '화학II', '화학Ⅱ', 'Chemistry II', 'chem2']) expect(canonicalSubject(raw)).toBe('화학Ⅱ');
+    expect(canonicalSubject('물1')).toBe('물리학Ⅰ');
+    expect(canonicalSubject('물리1')).toBe('물리학Ⅰ');
+    expect(canonicalSubject('생2')).toBe('생명과학Ⅱ');
+    expect(canonicalSubject('지1')).toBe('지구과학Ⅰ');
+    expect(canonicalSubject('사탐')).toBe('사회탐구');
     expect(canonicalSubject('kjso')).toBe('KJSO');
-    expect(canonicalSubject('생2')).toBe('생명과학2');
     expect(canonicalSubject('국어')).toBe('국어');
+  });
+
+  it('keeps merging into the old names in an existing save', () => {
+    for (const raw of ['화2', '화학Ⅱ', 'Chemistry II', 'chem2']) expect(canonicalSubject(raw, legacyList)).toBe('화학2');
+    expect(canonicalSubject('물리학Ⅰ', legacyList)).toBe('물리1');
+    expect(canonicalSubject('geometry', legacyList)).toBe('기하');
+  });
+
+  it('deletes subjects without ever deleting study records', () => {
+    let s = createNewGame('t');
+    ({ s } = run(s, (d, c) => recordStudy(d, c, '화2', 3600)));
+    const { s: s1, out } = run(s, (d) => deleteSubject(d, '화학Ⅱ'));
+    expect(out.kept).toBe(true);
+    expect(s1.subjects.find((x) => x.name === '화학Ⅱ')!.hidden).toBe(true);
+    expect(totalSeconds(s1)).toBe(3600);
+    // typing the name again restores it
+    const { s: s2 } = run(s1, (d, c) => recordStudy(d, c, '화학Ⅱ', 600));
+    expect(s2.subjects.find((x) => x.name === '화학Ⅱ')!.hidden).toBe(false);
+    // a subject without records is removed outright and stays removed after a reload
+    const { s: s3, out: o3 } = run(s2, (d) => deleteSubject(d, '한국사'));
+    expect(o3.kept).toBe(false);
+    expect(normalizeState(JSON.parse(JSON.stringify(s3))).subjects.some((x) => x.name === '한국사')).toBe(false);
+    const { s: s4, out: n } = run(s3, (d) => addDefaultSubjects(d));
+    expect(n).toBe(1);
+    expect(s4.subjects.some((x) => x.name === '한국사')).toBe(true);
   });
 });
 
@@ -49,7 +82,7 @@ describe('study records', () => {
     ({ s } = run(s, (d, c) => recordStudy(d, c, 'KJSO', 3600 + 40 * 60)));
     expect(s.study.length).toBe(3);
     expect(todaySeconds(s)).toBe((3 * 60 + 20 + 120 + 100) * 60);
-    expect(s.study[0].subject).toBe('화학2');
+    expect(s.study[0].subject).toBe('화학Ⅱ');
   });
 
   it('calculates rewards: 1 min = 1 EXP, 0.5 G, 10 min = 1 stamina', () => {
@@ -71,6 +104,19 @@ describe('study records', () => {
     expect(s2.study.length).toBe(0);
     expect(s2.player.totalExp).toBe(0);
     expect(s2.player.gold).toBe(s0.player.gold);
+  });
+
+  it('caps one RPG day at 24 hours in total', () => {
+    let s = createNewGame('t');
+    ({ s } = run(s, (d, c) => recordStudy(d, c, '수학', 20 * 3600)));
+    expect(() => run(s, (d, c) => recordStudy(d, c, '국어', 5 * 3600))).toThrow(/24시간/);
+    ({ s } = run(s, (d, c) => recordStudy(d, c, '국어', 4 * 3600)));
+    expect(todaySeconds(s)).toBe(24 * 3600);
+    expect(() => run(s, (d, c) => recordStudy(d, c, '국어', 60))).toThrow();
+    // a new RPG day resets the allowance
+    ({ s } = run(s, (d, c) => wakeUp(d, c)));
+    ({ s } = run(s, (d, c) => recordStudy(d, c, '국어', 3600)));
+    expect(todaySeconds(s)).toBe(3600);
   });
 
   it('rejects study while asleep', () => {
@@ -303,5 +349,66 @@ describe('save migration', () => {
     expect(n.gacha.pulls).toBe(0);
     expect(n.study.length).toBe(1);
     expect(n.subjects.some((x) => x.name === '신과목')).toBe(true);
+  });
+});
+
+describe('synthesis', () => {
+  it('combines 3 same-rarity pieces into 1 of the next rarity and charges gold', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.player.gold = 1000;
+      d.inventory.push({ uid: 'a', itemId: 'h_leather', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'b', itemId: 'h_iron', qty: 1, plus: 2, obtainedAt: 0 });
+      d.inventory.push({ uid: 'c', itemId: 'h_leather', qty: 1, plus: 0, obtainedAt: 0 });
+    });
+    expect(checkSynthesis(s, ['a', 'b', 'c']).slot).toBe('helmet');
+    const n = s.inventory.length;
+    const { s: s1, out } = run(s, (d, c) => synthesize(d, c, ['a', 'b', 'c']));
+    expect(getItem(out.itemId).rarity).toBe('uncommon');
+    expect(getItem(out.itemId).slot).toBe('helmet'); // same-slot materials → same slot
+    expect(s1.inventory.length).toBe(n - 2);
+    expect(s1.player.gold).toBe(1000 - SYNTH_COST.common);
+    expect(s1.stats.synthesized).toBe(1);
+  });
+
+  it('rejects mixed rarities, equipped items and mythic materials', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.player.gold = 99999;
+      d.inventory.push({ uid: 'x', itemId: 'h_leather', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'y', itemId: 'h_scholar', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'm1', itemId: 'w_infinitepen', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'm2', itemId: 'w_infinitepen', qty: 1, plus: 0, obtainedAt: 0 });
+      d.inventory.push({ uid: 'm3', itemId: 'w_infinitepen', qty: 1, plus: 0, obtainedAt: 0 });
+    });
+    expect(checkSynthesis(s, ['x', 'y', 'start_w']).ok).toBe(false); // start_w is equipped
+    expect(checkSynthesis(s, ['m1', 'm2', 'm3']).ok).toBe(false);
+    expect(() => run(s, (d, c) => synthesize(d, c, ['x', 'y', 'm1']))).toThrow();
+  });
+});
+
+describe('auto gacha', () => {
+  it('stops at the target rarity, costs the premium price, and gives every result', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.player.gold = 100000;
+    });
+    const { s: s1, out } = run(s, (d, c) => autoGacha(d, c, { stopAt: 'epic', maxPulls: 100 }));
+    const last = out.results[out.results.length - 1];
+    if (out.stopReason === 'target') expect(['epic', 'legendary', 'mythic']).toContain(last.rarity);
+    expect(out.spent).toBe(out.results.length * GACHA.auto);
+    expect(GACHA.auto).toBeGreaterThan(GACHA.single);
+    expect(s1.gacha.pulls).toBe(out.results.length);
+    expect(s1.gacha.history.length).toBe(Math.min(200, out.results.length));
+  });
+
+  it('stops when gold runs out', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.player.gold = GACHA.auto * 3 + 10;
+    });
+    const { out } = run(s, (d, c) => autoGacha(d, c, { stopAt: 'mythic', maxPulls: 100 }));
+    expect(out.results.length).toBeGreaterThanOrEqual(3);
+    expect(['gold', 'target']).toContain(out.stopReason);
   });
 });

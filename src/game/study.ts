@@ -1,11 +1,13 @@
-import { canonicalSubject, guessStat, pickCustomColor, STUDY_SECONDS_PER_TRAINING_POINT, STAT_LABEL } from '../data/subjects';
+import { canonicalSubject, defaultSubjectDef, DEFAULT_SUBJECTS, guessStat, pickCustomColor, STUDY_SECONDS_PER_TRAINING_POINT, STAT_LABEL, subjectKey } from '../data/subjects';
 import type { Ctx } from './core';
 import { GameError, gainExp, gainGold, gainStamina, healPct, sfx } from './core';
 import { deriveStats, subjectTotals } from './progression';
 import { uid } from './rng';
 import type { GameState, StatKey, StudyRecord } from './types';
 
-export const MAX_RECORD_SECONDS = 24 * 3600;
+/** Maximum study time per RPG day (all records of the day combined). */
+export const MAX_DAY_SECONDS = 24 * 3600;
+export const MAX_RECORD_SECONDS = MAX_DAY_SECONDS;
 export const GOLD_PER_MINUTE = 0.5;
 export const SECONDS_PER_STAMINA = 600; // 10 minutes of study = 1 stamina
 export const HEAL_PCT_PER_MINUTE = 1;
@@ -39,20 +41,73 @@ export function ensureSubject(s: GameState, raw: string): string {
   if (name.length > 24) throw new GameError('과목 이름이 너무 깁니다. (24자 이하)');
   const ex = s.subjects.find((x) => x.name === name);
   if (ex) {
-    if (ex.hidden) ex.hidden = false;
+    if (ex.hidden) ex.hidden = false; // typing a deleted subject's name restores it
     return name;
   }
-  const customCount = s.subjects.filter((x) => x.custom).length;
-  s.subjects.push({ name, en: name, stat: guessStat(name), color: pickCustomColor(customCount), custom: true });
+  const def = defaultSubjectDef(name);
+  if (def) {
+    s.subjects.push({ ...def, name });
+  } else {
+    const customCount = s.subjects.filter((x) => x.custom).length;
+    s.subjects.push({ name, en: name, stat: guessStat(name), color: pickCustomColor(customCount), custom: true });
+  }
   return name;
 }
 
 export function addCustomSubject(s: GameState, raw: string, stat?: StatKey) {
   const before = s.subjects.length;
+  const wasHidden = s.subjects.find((x) => x.name === canonicalSubject(raw, s.subjects))?.hidden ?? false;
   const name = ensureSubject(s, raw);
   const sub = s.subjects.find((x) => x.name === name)!;
-  if (stat && sub.custom) sub.stat = stat;
-  return { name, created: s.subjects.length > before };
+  const created = s.subjects.length > before;
+  if (stat && (created || sub.custom)) sub.stat = stat;
+  return { name, created, restored: wasHidden };
+}
+
+export function subjectSeconds(s: GameState, name: string) {
+  let t = 0;
+  for (const r of s.study) if (r.subject === name) t += r.seconds;
+  return t;
+}
+
+/**
+ * Deletes a subject from the subject list. Study records are NEVER deleted:
+ * if the subject has records it is only removed from the list (hidden) and its
+ * time keeps counting toward totals & training. Typing the name again restores it.
+ */
+export function deleteSubject(s: GameState, name: string): { kept: boolean } {
+  const idx = s.subjects.findIndex((x) => x.name === name);
+  if (idx < 0) throw new GameError('과목을 찾을 수 없습니다.');
+  if (subjectSeconds(s, name) > 0) {
+    s.subjects[idx].hidden = true;
+    return { kept: true };
+  }
+  s.subjects.splice(idx, 1);
+  if (s.timer && s.timer.subject === name) s.timer.subject = '';
+  return { kept: false };
+}
+
+export function restoreSubject(s: GameState, name: string) {
+  const sub = s.subjects.find((x) => x.name === name);
+  if (sub) sub.hidden = false;
+}
+
+/** Adds the 수능 subjects that the save doesn't have yet (matched by key). */
+export function addDefaultSubjects(s: GameState): number {
+  let added = 0;
+  for (const d of DEFAULT_SUBJECTS) {
+    const ex = s.subjects.find((x) => subjectKey(x.name) === subjectKey(d.name));
+    if (ex) {
+      if (ex.hidden) {
+        ex.hidden = false;
+        added++;
+      }
+      continue;
+    }
+    s.subjects.push({ ...d });
+    added++;
+  }
+  return added;
 }
 
 export function recordStudy(s: GameState, ctx: Ctx, subjectRaw: string, seconds: number): StudyRecord {
@@ -60,7 +115,15 @@ export function recordStudy(s: GameState, ctx: Ctx, subjectRaw: string, seconds:
   seconds = Math.floor(seconds);
   if (!Number.isFinite(seconds) || seconds <= 0) throw new GameError('공부 시간을 입력하세요.');
   if (seconds < 60) throw new GameError('1분 이상부터 기록할 수 있어요.');
-  if (seconds > MAX_RECORD_SECONDS) throw new GameError('한 번에 최대 24시간까지 기록할 수 있어요.');
+  const usedToday = todaySeconds(s);
+  if (usedToday + seconds > MAX_DAY_SECONDS) {
+    const left = MAX_DAY_SECONDS - usedToday;
+    throw new GameError(
+      left < 60
+        ? '이번 RPG 하루에는 이미 24시간을 모두 기록했어요. 잠들고 일어나면 새 하루가 시작됩니다.'
+        : `RPG 하루에는 최대 24시간까지 기록할 수 있어요. 오늘 남은 시간: ${fmtDuration(left, true)}`,
+    );
+  }
   const subject = ensureSubject(s, subjectRaw);
 
   const totalsBefore = subjectTotals(s)[subject] || 0;
