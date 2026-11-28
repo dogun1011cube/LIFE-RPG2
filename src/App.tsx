@@ -10,6 +10,8 @@ import { Game } from './ui/Game';
 import { Intro } from './ui/screens/Intro';
 import { Title } from './ui/screens/Title';
 import type { LoadResult } from './store/persistence';
+import { initOnline } from './online/session';
+import { AccountModal, ConflictModal } from './ui/online/AccountUI';
 
 type Phase = 'title' | 'intro' | 'game';
 
@@ -22,6 +24,11 @@ export function App() {
   });
   const [legacy] = useState(() => (!load.state && !legacyAlreadyImported() ? readLegacy() : null));
   const s = useMaybeGame();
+
+  // online accounts (no-op when Firebase is not configured)
+  useEffect(() => {
+    void initOnline();
+  }, []);
 
   // global SFX from game events
   useEffect(() => {
@@ -65,7 +72,7 @@ export function App() {
       <Backdrop />
       {phase === 'title' && (
         <Title
-          hasSave={!!load.state}
+          hasSave={!!s}
           saveNote={load.note}
           legacy={legacy}
           onContinue={() => setPhase('game')}
@@ -84,6 +91,8 @@ export function App() {
         />
       )}
       {phase === 'game' && s && <Game />}
+      <AccountModal onEntered={(kind) => setPhase(kind === 'new' ? 'intro' : 'game')} />
+      <ConflictModal />
     </>
   );
 }

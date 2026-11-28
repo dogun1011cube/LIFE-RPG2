@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// LIFE RPG — Firestore security rules
+//   meta/counter   : the next UID to hand out (moves forward by exactly 1 per sign-up)
+//   users/{authId} : { uid, username, createdAt } — created once, together with the counter bump
+//   saves/{authId} : the player's cloud save — only the owner can read / write it
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function counterPath() {
+      return /databases/$(database)/documents/meta/counter;
+    }
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    match /meta/counter {
+      allow read: if signedIn();
+      // first sign-up ever: counter is created at 10000002 together with UID 10000001
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['next'])
+        && request.resource.data.next == 10000002
+        && getAfter(profilePath()).data.uid == 10000001;
+      // every later sign-up: +1, and the caller's new profile must take the old value
+      allow update: if signedIn()
+        && request.resource.data.keys().hasOnly(['next'])
+        && request.resource.data.next == resource.data.next + 1
+        && !exists(profilePath())
+        && getAfter(profilePath()).data.uid == resource.data.next;
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['uid', 'username', 'createdAt'])
+        && request.resource.data.uid is int
+        && request.resource.data.username == request.auth.token.email.split('@')[0]
+        && getAfter(counterPath()).data.next == request.resource.data.uid + 1;
+      allow update, delete: if false;
+    }
+
+    match /saves/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.rev == 1
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000;
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000;
+      allow delete: if false;
+    }
+  }
+}

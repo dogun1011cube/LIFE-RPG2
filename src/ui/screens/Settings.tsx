@@ -7,6 +7,7 @@ import { deleteSave, exportSave, getBackup, getSnapshots, importSave, legacyAvai
 import { act, getLastSavedAt, getState, saveNow, setState, useGame } from '../../store/store';
 import { Btn, Win } from '../components';
 import { confirmDialog, go } from '../uiStore';
+import { AccountPanel } from '../online/AccountUI';
 
 export function Settings() {
   const s = useGame();
@@ -73,6 +74,7 @@ export function Settings() {
 
   return (
     <div className="settings">
+      <AccountPanel />
       <Win title="PLAYER" sub="캐릭터">
         <div className="row">
           <input className="input" maxLength={12} value={name} onChange={(e) => setName(e.target.value)} />
