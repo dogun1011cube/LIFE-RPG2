@@ -11,8 +11,7 @@ import { Btn, HeroSprite, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win 
 import { confirmDialog } from '../uiStore';
 import { equippedFor, StatCompare } from './Shop';
 import { SynthesisPanel } from './SynthesisPanel';
-import { WeaponCodex, WeaponKindLine } from '../WeaponInfo';
-import { WEAPON_KINDS } from '../../data/weapons';
+import { familyLabel, GearCodex, GearFamilyLine, SetBonusSummary } from '../GearInfo';
 
 type Filter = 'all' | 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'synth' | 'codex';
 
@@ -61,7 +60,7 @@ export function Inventory() {
                 ['special', '특수'],
                 ['cosmetic', '외형'],
                 ['synth', '합성'],
-                ['codex', '무기 도감'],
+                ['codex', '장비 도감'],
               ] as [Filter, string][]
             ).map(([f, l]) => (
               <button key={f} className={`tab ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>
@@ -72,7 +71,7 @@ export function Inventory() {
           {filter === 'synth' ? (
             <SynthesisPanel />
           ) : filter === 'codex' ? (
-            <WeaponCodex s={s} />
+            <GearCodex s={s} />
           ) : filter !== 'cosmetic' ? (
             <div className="inv-grid">
               {entries.map((e) => (
@@ -140,6 +139,7 @@ export function Inventory() {
               })}
             </div>
           </div>
+          <SetBonusSummary s={s} />
         </Win>
 
         <Win title="DETAIL" sub="상세" color={def && RARITIES.indexOf(def.rarity) >= 4 ? 'gold' : undefined}>
@@ -155,13 +155,13 @@ export function Inventory() {
                     </RarityText>
                   </div>
                   <div className="tiny muted">
-                    {RARITY_INFO[def.rarity].en} {def.slot ? `· ${def.kind ? WEAPON_KINDS[def.kind].ko : SLOT_LABEL[def.slot]}` : ''} {def.level ? `· 권장 Lv ${def.level}` : ''} {selEntry.qty > 1 ? `· 보유 ${selEntry.qty}` : ''}
+                    {RARITY_INFO[def.rarity].en} {def.slot ? `· ${familyLabel(def)}` : ''} {def.level ? `· 권장 Lv ${def.level}` : ''} {selEntry.qty > 1 ? `· 보유 ${selEntry.qty}` : ''}
                     {eq && <span className="gold-t"> · 장착 중 ({SLOT_LABEL[eqPos!]})</span>}
                   </div>
                 </div>
               </div>
               <p className="small">{def.desc}</p>
-              <WeaponKindLine def={def} />
+              <GearFamilyLine def={def} s={s} />
               {def.stats && <StatCompare stats={scaledStats(def.stats, selEntry.plus)} compare={eq ? undefined : equippedFor(s, def)} />}
               <div className="row wrap">
                 {def.category === 'equipment' &&

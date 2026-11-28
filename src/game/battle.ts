@@ -156,6 +156,8 @@ export interface BattlePlayer {
   dmgPct?: number; // % all damage
   typeDmg?: Partial<Record<AtkType, number>>; // % per attack type
   mpSave?: number; // % skill MP reduction
+  dodge?: number; // % extra evasion
+  dmgReduce?: number; // % less damage taken
 }
 
 export interface BattleState {
@@ -239,6 +241,8 @@ export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp
       dmgPct: d.dmgPct ?? 0,
       typeDmg: { ...(d.typeDmg ?? {}) },
       mpSave: d.mpSave ?? 0,
+      dodge: d.dodge ?? 0,
+      dmgReduce: d.dmgReduce ?? 0,
     },
     turn: 1,
     over: null,
@@ -651,7 +655,7 @@ function hitPlayer(b: BattleState, ev: BattleEvent[], rng: Rng, mult: number, fx
   const p = b.player;
   const m = b.monster;
   if (opts.canMiss !== false && opts.trueDmg === undefined) {
-    const evade = Math.min(0.15, 0.03 + p.dex * 0.001);
+    const evade = Math.min(0.15, 0.03 + p.dex * 0.001) + Math.min(30, p.dodge ?? 0) / 100;
     if (rng() < evade) {
       ev.push({ k: 'mAttack', dmg: 0, crit: false, miss: true, fx, pHp: p.hp, guarded: p.defending });
       return 0;
@@ -670,6 +674,8 @@ function hitPlayer(b: BattleState, ev: BattleEvent[], rng: Rng, mult: number, fx
     }
   }
   if (p.defending) dmg = Math.max(1, Math.round(dmg * 0.45));
+  // armor damage reduction (true damage — death sentence, doom, glitches — ignores it)
+  if (opts.trueDmg === undefined && (p.dmgReduce ?? 0) > 0) dmg = Math.max(1, Math.round(dmg * (1 - Math.min(40, p.dmgReduce ?? 0) / 100)));
   p.hp = Math.max(0, p.hp - dmg);
   ev.push({ k: 'mAttack', dmg, crit, miss: false, fx, pHp: p.hp, guarded: p.defending });
   return dmg;

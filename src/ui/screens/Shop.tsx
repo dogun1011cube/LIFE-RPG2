@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import { getItem, RARITY_INFO, SHOP_TABS, SLOT_LABEL } from '../../data/items';
+import { getItem, RARITY_INFO, SHOP_TABS } from '../../data/items';
 import { stageReqText } from '../../data/ranks';
-import { WEAPON_KINDS } from '../../data/weapons';
 import { scaledStats } from '../../game/progression';
 import { isEquipped } from '../../game/core';
 import type { SellScope } from '../../game/inventory';
 import { sellAll, sellAllPreview, sellItem, sellPrice, toggleLock } from '../../game/inventory';
 import { buyItem, canBuy, dailyDeal, dealBought, dealPrice, shopItems } from '../../game/shop';
-import type { GameState, ItemDef, ShopTab, StatBlock, WeaponKind } from '../../game/types';
+import type { GameState, ItemDef, ShopTab, StatBlock } from '../../game/types';
 import { act, useGame } from '../../store/store';
 import { Btn, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win } from '../components';
 import { confirmDialog } from '../uiStore';
-import { KindBadge, KindFilter, STAT_NAMES, WeaponKindLine } from '../WeaponInfo';
+import { FamilyBadge, familiesFor, familyLabel, FilterChips, GearFamilyLine, SLOT_OPTS, STAT_NAMES } from '../GearInfo';
 
 export { STAT_NAMES };
 
@@ -51,7 +50,8 @@ export function Shop() {
   const [qty, setQty] = useState(1);
   const [confirm, setConfirm] = useState<{ def: ItemDef; qty: number; price: number; deal?: boolean } | null>(null);
   const [scope, setScope] = useState<SellScope>('equipment');
-  const [kind, setKind] = useState<WeaponKind | 'all'>('all');
+  const [fam, setFam] = useState<string>('all');
+  const [slotF, setSlotF] = useState<string>('all');
 
   const doSellAll = async () => {
     const p = sellAllPreview(s, scope);
@@ -70,14 +70,17 @@ export function Shop() {
   const deal = dailyDeal(s);
   const bought = dealBought(s);
 
+  const byLevel = (a: ItemDef, b: ItemDef) => (a.level || 0) - (b.level || 0) || a.price - b.price;
   const list =
     tab === 'sell'
       ? []
       : tab === 'weapons'
-        ? shopItems(tab)
-            .filter((it) => kind === 'all' || it.kind === kind)
-            .sort((a, b) => (a.level || 0) - (b.level || 0) || a.price - b.price)
-        : shopItems(tab);
+        ? shopItems(tab).filter((it) => fam === 'all' || it.kind === fam).sort(byLevel)
+        : tab === 'armor'
+          ? shopItems(tab).filter((it) => (slotF === 'all' || it.slot === slotF) && (fam === 'all' || it.material === fam)).sort(byLevel)
+          : tab === 'accessories'
+            ? shopItems(tab).filter((it) => fam === 'all' || it.accKind === fam).sort(byLevel)
+            : shopItems(tab);
   const selDef = sel ? getItem(sel) : list[0] || null;
   const stackable = selDef ? selDef.category !== 'equipment' : false;
 
@@ -130,6 +133,8 @@ export function Shop() {
               setTab(t.id);
               setSel(null);
               setQty(1);
+              setFam('all');
+              setSlotF('all');
             }}
           >
             {t.en} <span className="tiny">{t.label}</span>
@@ -149,16 +154,28 @@ export function Shop() {
       {tab !== 'sell' ? (
         <div className="shop-body">
           <Win className="shop-list">
-            {tab === 'weapons' && (
-              <KindFilter
-                value={kind}
+            {tab === 'armor' && (
+              <FilterChips
+                options={SLOT_OPTS}
+                value={slotF}
+                allLabel="전 부위"
                 onChange={(k) => {
-                  setKind(k);
+                  setSlotF(k);
                   setSel(null);
                 }}
               />
             )}
-            {list.length === 0 && <div className="empty-state">이 계열은 상점에서 팔지 않아요. 몬스터 드롭·소환·합성으로 얻을 수 있습니다.</div>}
+            {(tab === 'weapons' || tab === 'armor' || tab === 'accessories') && (
+              <FilterChips
+                options={familiesFor(tab === 'weapons' ? 'weapon' : tab === 'armor' ? 'helmet' : 'accessory')}
+                value={fam}
+                onChange={(k) => {
+                  setFam(k);
+                  setSel(null);
+                }}
+              />
+            )}
+            {list.length === 0 && <div className="empty-state">조건에 맞는 상품이 없어요. 몬스터 드롭·소환·합성으로 얻을 수 있습니다.</div>}
             {list.map((it) => {
               const ok = canBuy(s, it);
               return (
@@ -175,7 +192,7 @@ export function Shop() {
                     <RarityText rarity={it.rarity}>{it.name}</RarityText>
                     <span className="tiny dim">
                       {' '}
-                      {it.kind ? <KindBadge kind={it.kind} /> : it.slot ? SLOT_LABEL[it.slot] : RARITY_INFO[it.rarity].ko}
+                      {it.slot ? <FamilyBadge def={it} /> : RARITY_INFO[it.rarity].ko}
                       {it.level ? ` · 권장 Lv ${it.level}` : ''}
                     </span>
                   </span>
@@ -201,12 +218,12 @@ export function Shop() {
                     </div>
                     <div className="tiny muted">
                       {selDef.nameEn} · <RarityText rarity={selDef.rarity}>{RARITY_INFO[selDef.rarity].en}</RarityText>
-                      {selDef.slot && ` · ${selDef.kind ? WEAPON_KINDS[selDef.kind].ko : SLOT_LABEL[selDef.slot]}`}
+                      {selDef.slot && ` · ${familyLabel(selDef)}`}
                     </div>
                   </div>
                 </div>
                 <p className="small">{selDef.desc}</p>
-                <WeaponKindLine def={selDef} />
+                <GearFamilyLine def={selDef} s={s} />
                 {selDef.stats && (
                   <>
                     <div className="tiny muted">능력치 (▲▼ 현재 장착 대비)</div>

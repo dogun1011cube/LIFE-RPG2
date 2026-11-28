@@ -23,9 +23,15 @@ export type WeaponKind =
   | 'sword' | 'greatsword' | 'katana' | 'dagger' | 'axe' | 'spear' | 'hammer' | 'bow'
   | 'fist' | 'scythe' | 'staff' | 'wand' | 'tome' | 'orb' | 'pen';
 
+/** Material of helmets / armor / gloves / boots — same-material pieces give set bonuses. */
+export type ArmorMaterial = 'cloth' | 'leather' | 'mail' | 'plate';
+/** Accessory kind — each grants a small fixed passive. */
+export type AccessoryKind = 'ring' | 'necklace' | 'charm' | 'earring' | 'bracelet' | 'relic';
+
 export type IconId =
   | 'sword' | 'staff' | 'book' | 'hammer' | 'scythe' | 'pen'
   | 'greatsword' | 'katana' | 'dagger' | 'axe' | 'spear' | 'bow' | 'fist' | 'wand' | 'orb' | 'mace'
+  | 'hood' | 'wizhat' | 'plate' | 'vest' | 'gauntlet' | 'greaves' | 'earring' | 'bracelet' | 'compass' | 'calc'
   | 'helmet' | 'armor' | 'robe' | 'gloves' | 'boots'
   | 'ring' | 'amulet' | 'charm' | 'hourglass' | 'seal'
   | 'potion' | 'ether' | 'elixir' | 'scroll' | 'bomb' | 'flask'
@@ -56,6 +62,12 @@ export interface StatBlock {
   poisonDmg?: number; // % poison type
   holyDmg?: number; // % holy type
   mpSave?: number; // % less MP for skills
+  // ── defensive modifiers (armor / accessories) ──
+  dodge?: number; // % extra chance to evade monster attacks
+  dmgReduce?: number; // % less damage taken
+  hpPct?: number; // % max HP
+  mpPct?: number; // % max MP
+  defPct?: number; // % DEF
 }
 
 export type ConsumableEffect =
@@ -77,6 +89,10 @@ export interface ItemDef {
   slot?: EquipSlot;
   /** Weapon kind (weapons only) — grants a fixed kind passive. */
   kind?: WeaponKind;
+  /** Armor material (helmet / armor / gloves / boots) — same-material pieces form a set. */
+  material?: ArmorMaterial;
+  /** Accessory kind — grants a fixed passive. */
+  accKind?: AccessoryKind;
   rarity: Rarity;
   /** Shop price (also the base value for selling / upgrading). */
   price: number;
@@ -296,6 +312,8 @@ export interface DerivedStats {
   dmgPct: number; // % all damage
   typeDmg: Record<AtkType, number>; // % damage per attack type
   mpSave: number; // % skill MP reduction
+  dodge: number; // % extra evasion
+  dmgReduce: number; // % less damage taken
   base: Record<StatKey, number>;
   training: Record<StatKey, number>;
   gear: StatBlock;

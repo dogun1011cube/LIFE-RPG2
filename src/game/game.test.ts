@@ -19,6 +19,8 @@ import { MONSTERS } from '../data/monsters';
 import { MONSTER_SKILLS } from '../data/monsterSkills';
 import { getItem, ITEMS } from '../data/items';
 import { stageForLevel, WEAPON_KIND_ORDER } from '../data/weapons';
+import { ARMOR_MATERIAL_ORDER } from '../data/armor';
+import { ACC_KIND_ORDER } from '../data/accessories';
 import { ICON_ALIAS, ICONS } from '../render/sprites';
 import { rankAtLeast } from '../data/ranks';
 import { rollItemOfRarity } from './loot';
@@ -729,5 +731,118 @@ describe('round 5: weapon kinds & many more weapons', () => {
     const n = normalizeState(old);
     expect(n.discovered).toEqual(expect.arrayContaining(['w_wood', 'w_claymore']));
     expect(normalizeState(JSON.parse(JSON.stringify(s1))).discovered).toEqual(s1.discovered); // kept as is
+  });
+});
+
+describe('round 6: armor materials, set bonuses, accessory kinds', () => {
+  const gearOf = (slot: string) => ITEMS.filter((i) => i.category === 'equipment' && i.slot === slot);
+  const wearing = (ids: Record<string, string>, lvl = 30) =>
+    produce(createNewGame('t'), (d) => {
+      d.player.totalExp = expForLevel(lvl);
+      d.player.equipment.armor = null;
+      d.player.equipment.weapon = null;
+      for (const [pos, id] of Object.entries(ids)) {
+        d.inventory.push({ uid: 'u_' + pos, itemId: id, qty: 1, plus: 0, obtainedAt: 0 });
+        (d.player.equipment as Record<string, string | null>)[pos] = 'u_' + pos;
+      }
+    });
+
+  it('every armor slot and accessories have many items; every piece has a material / kind', () => {
+    expect(gearOf('helmet').length).toBeGreaterThanOrEqual(25);
+    expect(gearOf('armor').length).toBeGreaterThanOrEqual(25);
+    expect(gearOf('gloves').length).toBeGreaterThanOrEqual(20);
+    expect(gearOf('boots').length).toBeGreaterThanOrEqual(15);
+    expect(gearOf('accessory').length).toBeGreaterThanOrEqual(45);
+    for (const slot of ['helmet', 'armor', 'gloves', 'boots']) {
+      for (const it of gearOf(slot)) expect(it.material, it.id).toBeTruthy();
+      for (const m of ARMOR_MATERIAL_ORDER) expect(gearOf(slot).some((i) => i.material === m), `${slot}/${m}`).toBe(true);
+    }
+    for (const it of gearOf('accessory')) expect(it.accKind, it.id).toBeTruthy();
+    for (const k of ACC_KIND_ORDER) expect(gearOf('accessory').filter((i) => i.accKind === k).length, k).toBeGreaterThanOrEqual(5);
+    for (const it of ITEMS.filter((i) => i.category === 'equipment')) {
+      expect(ICONS[it.icon] || ICON_ALIAS[it.icon], `${it.id} icon ${it.icon}`).toBeTruthy();
+      if (it.shop) expect(rankAtLeast(stageForLevel(it.level!) ?? 'F', it.minRank), it.id).toBe(true);
+    }
+    expect(new Set(ITEMS.map((i) => i.id)).size).toBe(ITEMS.length);
+  });
+
+  it('2-piece and 4-piece material sets apply', () => {
+    const none = deriveStats(wearing({ helmet: 'h_pot', armor: 'a_tunic' })); // plate + cloth: no set
+    const plate2 = deriveStats(wearing({ helmet: 'h_pot', armor: 'a_breastplate' }));
+    const plate4 = deriveStats(wearing({ helmet: 'h_pot', armor: 'a_breastplate', gloves: 'g_iron', boots: 'b_iron' }));
+    expect(none.dmgReduce).toBe(0);
+    expect(plate2.def).toBeGreaterThan(deriveStats(wearing({ helmet: 'h_pot' })).def + 17); // +17 flat and DEF +10%
+    expect(plate2.dmgReduce).toBe(0);
+    expect(plate4.dmgReduce).toBe(10);
+    const leather4 = deriveStats(wearing({ helmet: 'h_leather', armor: 'a_leather', gloves: 'g_leather', boots: 'b_leather' }));
+    expect(leather4.dodge).toBe(7);
+    expect(leather4.critDmg).toBeCloseTo(1.75 + 0.15);
+    const cloth4 = deriveStats(wearing({ helmet: 'h_bandana', armor: 'a_tunic', gloves: 'g_cotton', boots: 'b_sandal' }));
+    expect(cloth4.mpSave).toBe(10);
+    expect(cloth4.dmgPct).toBe(6);
+  });
+
+  it('accessory kinds give passives, stacking for two of the same kind', () => {
+    const one = deriveStats(wearing({ acc1: 'e_stud' }));
+    const two = deriveStats(wearing({ acc1: 'e_stud', acc2: 'e_hawk' }));
+    const base = deriveStats(wearing({}));
+    const gain = one.crit - base.crit; // passive +2, crit +1, dex +1 → +0.15 (crit is rounded to 0.1)
+    expect(gain).toBeGreaterThanOrEqual(3);
+    expect(gain).toBeLessThanOrEqual(3.3);
+    expect(two.crit).toBeGreaterThan(one.crit + 2);
+    expect(deriveStats(wearing({ acc1: 'n_shell' })).maxHp).toBeGreaterThan(base.maxHp + 15); // +15 flat and HP +3%
+  });
+
+  it('damage reduction lowers monster damage, but not true damage; dodge adds evasion', () => {
+    const run1 = (ids: Record<string, string>) => {
+      const s = wearing(ids, 20);
+      const d = deriveStats(s);
+      const m = spawnMonster('slime_green', 20);
+      m.maxHp = m.hp = 1e8;
+      let total = 0;
+      for (let i = 0; i < 200; i++) {
+        const b = createBattle({ kind: 'field', locationId: 'forest', title: '', waves: [{ ...m }], canEscape: true, bg: 'forest', staminaSpent: 0, modifiers: {} }, d, d.maxHp, d.maxMp, 0, 'swordsman');
+        b.player.dodge = 0; // isolate damage reduction
+        const r = resolveTurn(b, { type: 'defend' }, seeded(500 + i));
+        total += r.events.filter((e) => e.k === 'mAttack').reduce((a, e) => a + (e.k === 'mAttack' ? e.dmg : 0), 0);
+      }
+      return { total, d };
+    };
+    const plain = run1({});
+    const reduced = run1({ armor: 'a_eternal' }); // dmgReduce 5 (+ big DEF)
+    expect(reduced.d.dmgReduce).toBe(5);
+    expect(reduced.total).toBeLessThan(plain.total);
+    const dodgy = deriveStats(wearing({ boots: 'b_winged', helmet: 'h_galeband' }));
+    expect(dodgy.dodge).toBe(4 + 3 + 3); // items + leather 2-piece set
+  });
+
+  it('drops stay varied: no single equipment slot floods common drops, consumables still drop', () => {
+    const rng = seeded(11);
+    const tally: Record<string, number> = {};
+    const N = 6000;
+    for (let i = 0; i < N; i++) {
+      const it = rollItemOfRarity(rng, 'common', { maxLevel: 30 });
+      const g = it.category === 'equipment' ? it.slot! : it.category;
+      tally[g] = (tally[g] || 0) + 1;
+    }
+    for (const v of Object.values(tally)) expect(v / N).toBeLessThan(0.3);
+    expect((tally.consumable || 0) / N).toBeGreaterThan(0.08);
+  });
+
+  it('synthesis keeps armor material and accessory kind', () => {
+    const s0 = produce(createNewGame('t'), (d) => {
+      d.player.gold = 99999;
+      for (const u of ['a', 'b', 'c']) d.inventory.push({ uid: u, itemId: 'h_pot', qty: 1, plus: 0, obtainedAt: 0 });
+      for (const u of ['x', 'y', 'z']) d.inventory.push({ uid: u, itemId: 'c_clover', qty: 1, plus: 0, obtainedAt: 0 });
+    });
+    expect(checkSynthesis(s0, ['a', 'b', 'c']).material).toBe('plate');
+    expect(checkSynthesis(s0, ['x', 'y', 'z']).accKind).toBe('charm');
+    for (let seed = 1; seed < 6; seed++) {
+      const r1 = run(s0, (d, c) => synthesize(d, c, ['a', 'b', 'c']), makeCtx(seeded(seed), 1)).out;
+      expect(getItem(r1.itemId).slot).toBe('helmet');
+      expect(getItem(r1.itemId).material).toBe('plate');
+      const r2 = run(s0, (d, c) => synthesize(d, c, ['x', 'y', 'z']), makeCtx(seeded(seed), 1)).out;
+      expect(getItem(r2.itemId).accKind).toBe('charm');
+    }
   });
 });

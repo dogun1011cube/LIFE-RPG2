@@ -12,6 +12,7 @@ import { Bar, HeroSprite, ItemSlot, PixelIcon, RankBadge, Win } from '../compone
 import { heroTitle } from '../heroLook';
 import { go } from '../uiStore';
 import { CharacterDetail, CharacterPicker } from '../CharacterPanel';
+import { SetBonusSummary } from '../GearInfo';
 
 const SLOT_ICON: Record<string, string> = { weapon: 'sword', helmet: 'helmet', armor: 'armor', gloves: 'gloves', boots: 'boots', acc1: 'ring', acc2: 'amulet' };
 
@@ -89,6 +90,8 @@ export function Status() {
               공부 EXP 보너스 <b className="purple-t">+{Math.round(d.expBonus)}%</b> · 골드 보너스 <b className="gold-t">+{d.goldBonus}%</b> · 치명타 피해 ×{d.critDmg}
             </div>
             <div className="combat-mods tiny">
+              <span>회피 +<b>{d.dodge}%</b></span>
+              <span>받는 피해 −<b>{d.dmgReduce}%</b></span>
               <span>방어 관통 <b>{Math.round(d.pierce * 100)}%</b></span>
               <span>흡혈 <b>{d.lifesteal}%</b></span>
               <span>모든 피해 <b>+{d.dmgPct}%</b></span>
@@ -101,6 +104,7 @@ export function Status() {
                   </span>
                 ))}
             </div>
+            <SetBonusSummary s={s} />
           </div>
 
           <div className="col">
