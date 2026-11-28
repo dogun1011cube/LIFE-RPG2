@@ -197,8 +197,8 @@ export function PetBanner() {
         node: <PetIcon kind={x.kind} size={res.value.length === 1 ? 72 : 44} />,
         name: <PetRarityText rarity={x.rarity}>{PETS[x.kind].name}</PetRarityText>,
         color: PET_RARITY_INFO[x.rarity].color,
-        label: `${PET_RARITY_INFO[x.rarity].en} · ${PETS[x.kind].element}`,
-        note: x.pity ? <div className="tiny red-t">천장 보장!</div> : null,
+        label: PET_RARITY_INFO[x.rarity].en,
+        note: x.pity ? <div className="tiny red-t">천장 보장!</div> : <div className="tiny muted">{PETS[x.kind].title}</div>,
         tier: x.rarity === 'legendary' ? 2 : x.rarity === 'epic' || x.rarity === 'rare' ? 1 : 0,
       })),
     );
@@ -250,7 +250,7 @@ export function PetBanner() {
           <div className="row wrap" style={{ gap: 6, justifyContent: 'center', margin: '6px 0' }}>
             {ELEMENTAL_PETS.map((k) => (
               <span key={k} className="pet-chip" title={PETS[k].desc}>
-                <PetIcon kind={k} size={20} /> {PETS[k].name}
+                <PetIcon kind={k} size={20} /> {PETS[k].title}({PETS[k].name})
               </span>
             ))}
           </div>
