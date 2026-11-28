@@ -192,7 +192,7 @@ export function AccountModal({ onEntered }: { onEntered: (kind: 'game' | 'new') 
         {!online.configured && <div className="warn-line">온라인 서버가 아직 연결되지 않았어요. (관리자 설정 필요)</div>}
         <label className="field">
           <span className="small muted">아이디</span>
-          <input className="input" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="영문 소문자·숫자·_ 4~16자" maxLength={16} />
+          <input className="input" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} placeholder="한글 2~10자 또는 영문·숫자 4~16자" maxLength={16} />
         </label>
         <label className="field">
           <span className="small muted">비밀번호</span>

@@ -26,7 +26,7 @@ import { decodeSave, encodeSave } from './codec';
 import { MemoryBackend, MemoryServer } from './memoryBackend';
 import { _resetOnlineForTests, getOnline, initOnline, logout, resolveConflict, signInAndEnter, signUpAndEnter, startAccountGame, syncNow } from './session';
 import { reconcile } from './sync';
-import { UID_START, usernameProblem } from './types';
+import { displayUsername, loginIdOf, UID_START, usernameProblem } from './types';
 
 function freshDevice() {
   g.localStorage.clear();
@@ -52,13 +52,44 @@ describe('online: reconcile rules', () => {
 
   it('validates usernames and round-trips saves through the codec', () => {
     expect(usernameProblem('ab')).toBeTruthy();
-    expect(usernameProblem('한글아이디')).toBeTruthy();
     expect(usernameProblem('Hero_01')).toBeNull(); // normalized to lowercase
+    // Hangul IDs: 2~10 characters
+    expect(usernameProblem('용사')).toBeNull();
+    expect(usernameProblem('공부왕_123')).toBeNull();
+    expect(usernameProblem('용')).toBeTruthy();
+    expect(usernameProblem('가나다라마바사아자차카')).toBeTruthy(); // 11 chars
+    expect(usernameProblem('용사!')).toBeTruthy();
+    expect(usernameProblem('ㄱㄴㄷ')).toBeTruthy(); // jamo only, not syllables
+    expect(usernameProblem('abc')).toBeTruthy(); // English-only still 4+
     const st = createNewGame('코덱');
     st.study.push({ id: 'r', subject: '화학2', seconds: 3600, day: 1, at: 0, exp: 60, gold: 30, stamina: 6, bonusPct: 0 });
     const back = decodeSave(encodeSave(st));
     expect(back.player.name).toBe('코덱');
     expect(back.study[0].seconds).toBe(3600);
+  });
+});
+
+describe('online: Hangul usernames', () => {
+  it('encodes Hangul IDs into an email-safe login id and back', () => {
+    expect(loginIdOf('Hero_01')).toBe('hero_01'); // English IDs unchanged (existing accounts keep working)
+    const id = loginIdOf('공부왕');
+    expect(id).toMatch(/^k-[0-9a-f]+$/);
+    expect(displayUsername(id)).toBe('공부왕');
+    expect(loginIdOf('공부왕')).toBe(loginIdOf(' 공부왕 ')); // trimmed
+    expect(loginIdOf('공부왕'.normalize('NFD'))).toBe(id); // macOS-style decomposed input
+    expect(loginIdOf('가나다라마바사아자차')).toHaveLength(2 + 60); // 10 Hangul fit the 64-char email limit
+    expect(displayUsername('hero_01')).toBe('hero_01');
+  });
+
+  it('signs up and in with a Hangul ID', async () => {
+    const server = new MemoryServer();
+    await initOnline({ backend: new MemoryBackend(server) });
+    await signUpAndEnter('공부왕', 'secret1');
+    expect(getOnline().account?.username).toBe('공부왕');
+    await logout();
+    await expect(signUpAndEnter('공부왕', 'other12')).rejects.toThrow('이미 사용 중인 아이디');
+    await signInAndEnter('공부왕', 'secret1');
+    expect(getOnline().account?.uid).toBe(UID_START);
   });
 });
 

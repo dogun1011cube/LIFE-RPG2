@@ -64,6 +64,21 @@ describe.skipIf(!ON)('firebase backend (emulator)', () => {
     await be.signOut();
   });
 
+  it('Hangul IDs work with the published security rules', async () => {
+    const be = await createFirebaseBackend();
+    const name = '용사' + run.slice(-4).replace(/[^0-9a-z]/g, '');
+    const a = await be.signUp(name, 'secret1');
+    expect(a.username).toBe(name);
+    expect(await be.push(createNewGame('한글'), 0)).toEqual({ ok: true, rev: 1 });
+    await be.signOut();
+    await expect(be.signUp(name, 'secret2')).rejects.toThrow('이미 사용 중인 아이디');
+    const again = await be.signIn(name, 'secret1');
+    expect(again.uid).toBe(a.uid);
+    expect(again.username).toBe(name);
+    expect((await be.pull())?.state.player.name).toBe('한글');
+    await be.signOut();
+  });
+
   it('security rules: saves are private and UIDs cannot be forged', async () => {
     const be = await createFirebaseBackend();
     const owner = await be.signUp(`ow${run}`, 'secret1');

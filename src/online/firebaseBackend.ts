@@ -6,18 +6,19 @@ import type { GameState } from '../game/types';
 import { decodeSave, encodeSave, saveSummary } from './codec';
 import { EMULATOR_HOST, FIREBASE_CONFIG } from './config';
 import type { Account, CloudSave, OnlineBackend, PushResult } from './types';
-import { normalizeUsername, OnlineError, UID_START } from './types';
+import { displayUsername, loginIdOf, OnlineError, UID_START } from './types';
 
 // ─────────────────────────────────────────────────────────────
 // Firebase backend
-//   Auth      : email/password, where the email is "<username>@player.liferpg.app"
-//               (players only ever see / type their username).
+//   Auth      : email/password, where the email is "<login id>@player.liferpg.app"
+//               (players only ever see / type their username; Hangul IDs are
+//               hex-encoded into the login id — see loginIdOf / displayUsername).
 //   Firestore : meta/counter (next UID), users/{authId} (profile), saves/{authId}.
 // The SDK is loaded lazily so the offline game never downloads it.
 // ─────────────────────────────────────────────────────────────
 
 export const USER_EMAIL_DOMAIN = 'player.liferpg.app';
-export const emailOf = (username: string) => `${normalizeUsername(username)}@${USER_EMAIL_DOMAIN}`;
+export const emailOf = (username: string) => `${loginIdOf(username)}@${USER_EMAIL_DOMAIN}`;
 
 const AUTH_ERRORS: Record<string, string> = {
   'auth/email-already-in-use': '이미 사용 중인 아이디입니다.',
@@ -75,7 +76,7 @@ export async function createFirebaseBackend(): Promise<OnlineBackend> {
     const snap = await fs.getDoc(userRef(user.uid));
     if (snap.exists()) {
       const d = snap.data() as { uid: number; username: string; createdAt: number };
-      return { authId: user.uid, uid: d.uid, username: d.username, createdAt: d.createdAt };
+      return { authId: user.uid, uid: d.uid, username: displayUsername(d.username), createdAt: d.createdAt };
     }
     const createdAt = Date.now();
     const uid = await fs.runTransaction(db, async (tx) => {
@@ -87,7 +88,7 @@ export async function createFirebaseBackend(): Promise<OnlineBackend> {
       tx.set(userRef(user.uid), { uid: next, username, createdAt });
       return next;
     });
-    return { authId: user.uid, uid, username, createdAt };
+    return { authId: user.uid, uid, username: displayUsername(username), createdAt };
   }
 
   return {
