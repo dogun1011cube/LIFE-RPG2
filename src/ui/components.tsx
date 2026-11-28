@@ -3,10 +3,11 @@ import { playSfx } from '../audio/sfx';
 import { getItem, RARITY_INFO } from '../data/items';
 import { getMonster } from '../data/monsters';
 import { monsterSkills } from '../data/monsterSkills';
+import { affinityOf, ATK_INFO } from '../data/characters';
 import { getRank } from '../data/ranks';
 import type { GameState, ItemDef, RankId, SfxName } from '../game/types';
 import { iconCanvas, monsterCanvas, spriteCanvas, toDataURL } from '../render/draw';
-import { heroPalette } from './heroLook';
+import { heroPalette, heroSprite } from './heroLook';
 
 // ── Window ──────────────────────────────────────────────────
 export function Win(props: {
@@ -145,7 +146,8 @@ export function MonsterSprite(props: { id: string; scale?: number; className?: s
 export function HeroSprite(props: { state: GameState; scale?: number; className?: string }) {
   const pal = heroPalette(props.state);
   const key = JSON.stringify(pal);
-  const url = useMemo(() => toDataURL(spriteCanvas('hero', pal), props.scale ?? 6), [key, props.scale]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sprite = heroSprite(props.state);
+  const url = useMemo(() => toDataURL(spriteCanvas(sprite, pal), props.scale ?? 6), [key, sprite, props.scale]); // eslint-disable-line react-hooks/exhaustive-deps
   const auraId = props.state.player.cosmetics.aura;
   const aura = auraId ? getItem(auraId).cosmetic?.value : null;
   return (
@@ -234,9 +236,29 @@ export function useNow(interval = 1000) {
 // ── Monster skill info (bestiary / tower) ───────────────────
 export function MonsterSkillInfo(props: { id: string; compact?: boolean }) {
   const kit = monsterSkills(props.id);
+  const aff = affinityOf(props.id);
   if (!kit) return null;
   return (
     <div className={`mskill-box ${props.compact ? 'compact' : ''}`}>
+      {(aff.weak.length > 0 || aff.resist.length > 0 || aff.immune.length > 0) && (
+        <div className="aff-row tiny">
+          {aff.weak.map((t) => (
+            <span key={'w' + t} className="aff weak" style={{ ['--tc' as string]: ATK_INFO[t].color } as React.CSSProperties}>
+              약점 {ATK_INFO[t].ko}
+            </span>
+          ))}
+          {aff.resist.map((t) => (
+            <span key={'r' + t} className="aff resist">
+              내성 {ATK_INFO[t].ko}
+            </span>
+          ))}
+          {aff.immune.map((t) => (
+            <span key={'i' + t} className="aff immune">
+              면역 {ATK_INFO[t].ko}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mskill">
         <span className="tag" style={{ background: 'var(--cyan)' }}>고유</span> <b>{kit.sig.name}</b>
         {!props.compact && <div className="tiny muted">{kit.sig.desc}</div>}

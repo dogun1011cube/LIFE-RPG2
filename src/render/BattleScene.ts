@@ -3,6 +3,7 @@ import type { BgId } from '../data/world';
 import type { BattleEvent, MonsterInstance } from '../game/battle';
 import { drawAmbient, getBackground, GROUND_Y, VH, VW } from './backgrounds';
 import { makeCanvas, monsterCanvas, silhouette, spriteCanvas } from './draw';
+import type { HeroSpriteId } from './sprites';
 
 // ─────────────────────────────────────────────────────────────
 // Canvas battle renderer (logical 320×180, scaled up pixelated).
@@ -66,6 +67,12 @@ interface SceneMonster {
   gone: boolean;
 }
 
+export const FX_COLOR: Record<string, string> = {
+  orb: '#74c0fc', chain: '#69db7c', nova: '#ffe066', fire: '#ff922b', firepillar: '#ff922b', meteor: '#ff6b35',
+  poison: '#94d82d', mist: '#82c91e', plague: '#b2f542', holy: '#ffe066', holypillar: '#fff3bf', judge: '#ffd43b',
+};
+export const MELEE_FX: string[] = ['slash', 'cleave', 'insight', 'gravity', 'melee'];
+
 const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
@@ -122,8 +129,8 @@ export class BattleScene {
     this.bg = bg;
   }
 
-  setHero(palette: Record<string, string>, aura: string | null) {
-    this.heroImg = spriteCanvas('hero', palette);
+  setHero(sprite: HeroSpriteId, palette: Record<string, string>, aura: string | null) {
+    this.heroImg = spriteCanvas(sprite, palette);
     this.heroAura = aura;
   }
 
@@ -261,8 +268,9 @@ export class BattleScene {
     switch (ev.k) {
       case 'pAttack': {
         const c = this.monsterCenter();
-        const melee = ev.fx === 'slash' || ev.fx === 'insight' || ev.fx === 'gravity' || ev.fx === 'melee';
+        const melee = MELEE_FX.includes(ev.fx);
         const dies = ev.mHp <= 0;
+        const col = FX_COLOR[ev.fx] || '#74c0fc';
         if (melee) {
           if (ev.hitIndex === 0) await this.heroDash(48);
           if (ev.fx === 'insight') {
@@ -273,20 +281,25 @@ export class BattleScene {
             this.addFx({ kind: 'gravity', dur: 520, x: c.x, y: c.y });
             await this.wait(260);
           }
-          this.addFx({ kind: 'slash', dur: 240, x: c.x, y: c.y, crit: ev.crit, color: ev.fx === 'gravity' ? '#b197fc' : ev.fx === 'insight' ? '#ffe066' : '#ffffff' });
-        } else {
-          // magic projectile from the hero
-          const h = this.heroCenter();
-          const col = ev.fx === 'nova' ? '#ffe066' : ev.fx === 'chain' ? '#69db7c' : '#74c0fc';
-          if (ev.fx === 'nova') {
-            this.addFx({ kind: 'nova', dur: 700, x: c.x, y: c.y, color: col });
-            this.screenFlash('rgba(255,250,220,0.6)', 260);
-            await this.wait(300);
-          } else {
-            this.addFx({ kind: 'orb', dur: 260, x: h.x + 10, y: h.y, x2: c.x, y2: c.y, color: col });
-            await this.wait(250);
-            this.burst(c.x, c.y, [col, '#ffffff'], 16, 90, 40);
+          this.addFx({ kind: 'slash', dur: 240, x: c.x, y: c.y, crit: ev.crit, color: ev.fx === 'gravity' ? '#b197fc' : ev.fx === 'insight' ? '#ffe066' : ev.fx === 'cleave' ? '#ffa8a8' : '#ffffff' });
+        } else if (ev.fx === 'firepillar' || ev.fx === 'holypillar') {
+          this.addFx({ kind: 'pillar', dur: 520, x: c.x, y: c.y + c.h / 2, color: col });
+          await this.wait(300);
+          this.burst(c.x, c.y, [col, '#ffffff'], 18, 80, -30);
+        } else if (ev.fx === 'nova' || ev.fx === 'meteor' || ev.fx === 'judge' || ev.fx === 'plague' || ev.fx === 'mist') {
+          if (ev.fx === 'meteor') {
+            this.addFx({ kind: 'pillar', dur: 450, x: c.x, y: c.y + c.h / 2, color: '#ff6b35' });
+            await this.wait(240);
           }
+          this.addFx({ kind: 'nova', dur: ev.fx === 'mist' ? 900 : 700, x: c.x, y: c.y, color: col });
+          if (ev.fx !== 'mist') this.screenFlash(ev.fx === 'plague' ? 'rgba(160,230,60,0.35)' : ev.fx === 'meteor' ? 'rgba(255,140,60,0.5)' : 'rgba(255,250,220,0.6)', 260);
+          await this.wait(300);
+        } else {
+          // projectile from the hero
+          const h = this.heroCenter();
+          this.addFx({ kind: 'orb', dur: 260, x: h.x + 10, y: h.y, x2: c.x, y2: c.y, color: col });
+          await this.wait(250);
+          this.burst(c.x, c.y, [col, '#ffffff'], 16, 90, 40);
         }
         if (ev.miss) {
           this.text('MISS', c.x, c.y - c.h / 2, '#adb5bd', 11);
@@ -294,10 +307,21 @@ export class BattleScene {
           await this.wait(220);
         } else {
           this.monsterHit(ev.crit, dies);
-          this.text(String(ev.dmg), c.x + (ev.hitIndex - 1) * 10, c.y - c.h / 2 + 4, ev.crit ? '#ffe066' : '#ffffff', ev.crit ? 17 : 13, ev.crit ? 'CRITICAL!' : undefined);
+          const label = ev.crit ? 'CRITICAL!' : ev.aff === 'weak' ? 'WEAK!' : ev.aff === 'resist' ? 'RESIST' : ev.aff === 'immune' ? 'IMMUNE' : undefined;
+          const color = ev.crit ? '#ffe066' : ev.aff === 'weak' ? '#ffa94d' : ev.aff === 'resist' || ev.aff === 'immune' ? '#adb5bd' : '#ffffff';
+          this.text(String(ev.dmg), c.x + (ev.hitIndex - 1) * 10, c.y - c.h / 2 + 4, color, ev.crit ? 17 : 13, label);
           await this.wait(m?.slime ? 380 : 260);
         }
         if (melee && this.hero.offX !== 0) await this.heroBack();
+        break;
+      }
+      case 'mDot': {
+        const c = this.monsterCenter();
+        const col = ev.kind === 'burn' ? ['#ff922b', '#ffe066', '#e03131'] : ['#94d82d', '#5c940d', '#b57bff'];
+        if (this.monster) this.monster.flashUntil = this.now() + 90;
+        this.burst(c.x, c.y + c.h / 4, col, 12, 40, ev.kind === 'burn' ? -50 : -20);
+        this.text(String(ev.dmg), c.x, c.y - c.h / 2, ev.kind === 'burn' ? '#ffa94d' : '#b2f542', 12, ev.kind === 'burn' ? 'BURN' : 'POISON');
+        await this.wait(420);
         break;
       }
       case 'pHeal': {
@@ -795,6 +819,17 @@ export class BattleScene {
             drawLine(-1, '#ffffff', 2);
           }
           ctx.globalAlpha = 1;
+          break;
+        }
+        case 'pillar': {
+          const w = 18 * Math.sin(Math.min(1, k * 1.3) * Math.PI) + 2;
+          ctx.globalAlpha = 0.85 * (1 - k * 0.6);
+          ctx.fillStyle = f.color!;
+          ctx.fillRect(Math.round(f.x - w / 2), 0, Math.round(w), Math.round(f.y));
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.round(f.x - w / 5), 0, Math.max(1, Math.round(w / 2.5)), Math.round(f.y));
+          ctx.globalAlpha = 1;
+          if (Math.random() < 0.8) this.particles.push({ x: f.x + (Math.random() - 0.5) * w, y: f.y - Math.random() * 20, vx: (Math.random() - 0.5) * 30, vy: -40 - Math.random() * 40, life: 0.5, max: 0.5, color: Math.random() < 0.5 ? f.color! : '#ffffff', size: 2, grav: 0 });
           break;
         }
         case 'orb': {

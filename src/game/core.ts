@@ -110,6 +110,17 @@ export function isStackable(itemId: string) {
  */
 export function addItem(s: GameState, itemId: string, qty = 1, ctx?: Ctx, notify = true): { label: string; converted?: number } {
   const def = getItem(itemId);
+  if (def.category === 'character' && def.character) {
+    if (s.ownedCharacters.includes(def.character)) {
+      const refund = Math.round(RARITY_INFO[def.rarity].value * 0.5);
+      gainGold(s, refund);
+      if (ctx && notify) toast(ctx, 'item', '중복 캐릭터 → 골드 변환', `${def.name} → ${refund} G`);
+      return { label: def.name, converted: refund };
+    }
+    s.ownedCharacters.push(def.character);
+    if (ctx && notify) toast(ctx, 'item', 'NEW CHARACTER!', def.name.replace('캐릭터: ', ''));
+    return { label: def.name };
+  }
   if (def.category === 'cosmetic') {
     if (s.ownedCosmetics.includes(itemId)) {
       const refund = Math.round(RARITY_INFO[def.rarity].value * 0.5);

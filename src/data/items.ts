@@ -115,6 +115,12 @@ export const ITEMS: ItemDef[] = [
   I({ id: 'cos_a_gold', name: '금빛 오라', nameEn: 'Golden Aura', desc: '캐릭터 주위에 금빛 입자가 흐른다.', category: 'cosmetic', rarity: 'epic', price: 900, icon: 'aura', tint: '#ffd43b', cosmetic: { kind: 'aura', value: '#ffd43b' }, gacha: true }),
   I({ id: 'cos_a_void', name: '심연의 오라', nameEn: 'Void Aura', desc: '캐릭터 주위에 보랏빛 심연이 일렁인다.', category: 'cosmetic', rarity: 'legendary', price: 3000, icon: 'aura', tint: '#b57bff', cosmetic: { kind: 'aura', value: '#9c6bff' }, gacha: true }),
   I({ id: 'cos_a_rainbow', name: '무지개 오라', nameEn: 'Prismatic Aura', desc: '신화의 빛. 캐릭터 주위에 무지개가 흐른다.', category: 'cosmetic', rarity: 'mythic', price: 9000, icon: 'aura', tint: '#ff4d6d', cosmetic: { kind: 'aura', value: 'rainbow' }, gacha: true }),
+
+  // ───────────── CHARACTERS (gacha only) ─────────────
+  I({ id: 'char_mage', name: '캐릭터: 에테르 (마도사)', nameEn: 'Character: Aether', desc: '마법 유형 캐릭터. 방어를 무시하는 마법을 쓴다. 소환하면 출전 캐릭터로 고를 수 있다.', category: 'character', rarity: 'epic', price: 0, icon: 'person', tint: '#74c0fc', character: 'mage' }),
+  I({ id: 'char_pyro', name: '캐릭터: 이그니스 (화염술사)', nameEn: 'Character: Ignis', desc: '화염 유형 캐릭터. 화상으로 적을 오래 태운다.', category: 'character', rarity: 'epic', price: 0, icon: 'person', tint: '#ff922b', character: 'pyro' }),
+  I({ id: 'char_toxin', name: '캐릭터: 비올라 (독술사)', nameEn: 'Character: Viola', desc: '독 유형 캐릭터. 독을 겹겹이 쌓아 끈질기게 녹인다.', category: 'character', rarity: 'epic', price: 0, icon: 'person', tint: '#94d82d', character: 'toxin' }),
+  I({ id: 'char_cleric', name: '캐릭터: 세라핌 (성직자)', nameEn: 'Character: Seraphim', desc: '신성 유형 캐릭터. 피해를 흡수하고 언데드를 정화한다.', category: 'character', rarity: 'legendary', price: 0, icon: 'person', tint: '#ffe066', character: 'cleric' }),
 ];
 
 export const ITEM_MAP: Record<string, ItemDef> = Object.fromEntries(ITEMS.map((i) => [i.id, i]));

@@ -1,9 +1,25 @@
+import { getCharacter } from '../data/characters';
 import { getItem, RARITY_INFO } from '../data/items';
+import type { HeroSpriteId } from '../render/sprites';
 import type { GameState } from '../game/types';
 import { shade } from '../render/draw';
 
 /** Sprite palette of the hero, derived from equipped gear & cosmetics. */
+export function heroSprite(s: GameState): HeroSpriteId {
+  return getCharacter(s.player.activeCharacter).sprite;
+}
+
 export function heroPalette(s: GameState): Record<string, string> {
+  const ch = getCharacter(s.player.activeCharacter);
+  if (ch.sprite !== 'hero') {
+    // other characters keep their own look; only the cape cosmetic is applied
+    const own: Record<string, string> = { ...(ch.palette || {}) };
+    if (s.player.cosmetics.cape) {
+      const cos = getItem(s.player.cosmetics.cape).cosmetic;
+      if (cos) own.c = cos.value;
+    }
+    return own;
+  }
   const pal: Record<string, string> = {};
   const eq = (pos: keyof GameState['player']['equipment']) => {
     const uid = s.player.equipment[pos];

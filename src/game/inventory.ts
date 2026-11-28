@@ -321,3 +321,11 @@ export function autoPickSynth(s: GameState, rarity: Rarity): string[] {
   }
   return (best ?? sorted.slice(0, SYNTH_COUNT)).map((e) => e.uid);
 }
+
+// ── Characters ───────────────────────────────────────────────
+export function setActiveCharacter(s: GameState, ctx: Ctx, id: string) {
+  if (!s.ownedCharacters.includes(id)) throw new GameError('아직 얻지 못한 캐릭터입니다. 소환의 제단에서 만나 보세요.');
+  s.player.activeCharacter = id;
+  clampVitals(s);
+  sfx(ctx, 'confirm');
+}

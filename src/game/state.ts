@@ -1,3 +1,4 @@
+import { STARTER_CHARACTER } from '../data/characters';
 import { DEFAULT_SUBJECTS } from '../data/subjects';
 import type { GameState, LifetimeStats, Settings } from './types';
 import { unlockStage } from './progression';
@@ -61,10 +62,12 @@ export function createNewGame(name: string, now = Date.now()): GameState {
       stamina: 6,
       equipment: { weapon: 'start_w', helmet: null, armor: 'start_a', gloves: null, boots: null, acc1: null, acc2: null },
       cosmetics: { title: null, cape: null, aura: null },
+      activeCharacter: STARTER_CHARACTER,
       studyBuff: { expPct: 0, goldPct: 0 },
     },
     inventory: starter,
     ownedCosmetics: [],
+    ownedCharacters: [STARTER_CHARACTER],
     subjects: DEFAULT_SUBJECTS.map((s) => ({ ...s })),
     study: [],
     day: {
@@ -85,7 +88,7 @@ export function createNewGame(name: string, now = Date.now()): GameState {
     tower: { highestCleared: 0, currentFloor: 1, flags: {}, runs: 0 },
     quests: { dailyClaimed: [], achievementsClaimed: [], notified: [] },
     monsters: {},
-    gacha: { pulls: 0, pity: 0, history: [] },
+    gacha: { pulls: 0, pity: 0, charPity: 0, history: [] },
     stats: defaultStats(),
     rankSeen: 'F',
     stageSeen: 'F',
@@ -124,6 +127,10 @@ export function normalizeState(raw: unknown): GameState {
   const s = fillDefaults(raw, base);
   // saves made before unlock stages existed: don't re-announce stages already reached
   if (isObj(raw) && raw.stageSeen === undefined) s.stageSeen = unlockStage(s);
+  // characters: the starter is always owned; the active one must be owned
+  if (!Array.isArray(s.ownedCharacters)) s.ownedCharacters = [STARTER_CHARACTER];
+  if (!s.ownedCharacters.includes(STARTER_CHARACTER)) s.ownedCharacters.unshift(STARTER_CHARACTER);
+  if (!s.ownedCharacters.includes(s.player.activeCharacter)) s.player.activeCharacter = STARTER_CHARACTER;
   // Equipment slots are nullable; if the slot object came from defaults for an old save,
   // don't auto-equip starter items that the inventory doesn't contain.
   for (const pos of Object.keys(s.player.equipment) as (keyof typeof s.player.equipment)[]) {

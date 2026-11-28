@@ -9,6 +9,7 @@ import { seeded } from '../../game/rng';
 import { act, useGame } from '../../store/store';
 import { Btn, MonsterSkillInfo, MonsterSprite, PixelIcon, Win } from '../components';
 import { go, setUI } from '../uiStore';
+import { CharacterPicker } from '../CharacterPanel';
 
 const NODE_ICON: Record<string, [string, string]> = {
   town: ['home', '#ffd43b'],
@@ -183,6 +184,12 @@ export function BattleMenu() {
               </span>
             </div>
             {!unlocked && <div className="warn-line">{loc.unlock?.text}</div>}
+            {loc.kind !== 'town' && (
+              <div style={{ marginTop: 8 }}>
+                <div className="tiny muted">출전 캐릭터 (몬스터의 약점/내성에 맞춰 골라 보세요)</div>
+                <CharacterPicker compact />
+              </div>
+            )}
             <div className="col" style={{ marginTop: 12 }}>
               {loc.kind === 'town' ? (
                 <>

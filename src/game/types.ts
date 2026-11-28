@@ -14,7 +14,7 @@ export type EquipSlot = 'weapon' | 'helmet' | 'armor' | 'gloves' | 'boots' | 'ac
 export type EquipPosition = 'weapon' | 'helmet' | 'armor' | 'gloves' | 'boots' | 'acc1' | 'acc2';
 export const EQUIP_POSITIONS: EquipPosition[] = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'acc1', 'acc2'];
 
-export type ItemCategory = 'equipment' | 'consumable' | 'special' | 'cosmetic';
+export type ItemCategory = 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'character';
 export type ShopTab = 'weapons' | 'armor' | 'accessories' | 'consumables' | 'special';
 
 export type IconId =
@@ -22,7 +22,7 @@ export type IconId =
   | 'helmet' | 'armor' | 'robe' | 'gloves' | 'boots'
   | 'ring' | 'amulet' | 'charm' | 'hourglass' | 'seal'
   | 'potion' | 'ether' | 'elixir' | 'scroll' | 'bomb' | 'flask'
-  | 'chest' | 'ticket' | 'cape' | 'crown' | 'aura' | 'gem' | 'coin' | 'drink';
+  | 'chest' | 'ticket' | 'cape' | 'crown' | 'aura' | 'gem' | 'coin' | 'drink' | 'person';
 
 /** Flat bonus block used by equipment and derived stats. */
 export interface StatBlock {
@@ -73,6 +73,8 @@ export interface ItemDef {
   /** Can be used inside battle. */
   battle?: boolean;
   cosmetic?: { kind: 'title' | 'cape' | 'aura'; value: string };
+  /** Playable character unlocked by this item (gacha). */
+  character?: string;
   /** Can appear from the gacha. */
   gacha?: boolean;
   /** Can drop from monsters / chests. */
@@ -158,6 +160,8 @@ export interface PlayerState {
   stamina: number;
   equipment: Record<EquipPosition, string | null>;
   cosmetics: { title: string | null; cape: string | null; aura: string | null };
+  /** Character used in battle (shares level / EXP / gear). */
+  activeCharacter: string;
   studyBuff: { expPct: number; goldPct: number };
 }
 
@@ -229,6 +233,7 @@ export interface GameState {
   player: PlayerState;
   inventory: InventoryEntry[];
   ownedCosmetics: string[];
+  ownedCharacters: string[];
   subjects: SubjectDef[];
   study: StudyRecord[];
   day: DayState;
@@ -237,7 +242,7 @@ export interface GameState {
   tower: TowerState;
   quests: { dailyClaimed: string[]; achievementsClaimed: string[]; notified: string[] };
   monsters: Record<string, MonsterRecord>;
-  gacha: { pulls: number; pity: number; history: GachaRecord[] };
+  gacha: { pulls: number; pity: number; charPity: number; history: GachaRecord[] };
   stats: LifetimeStats;
   rankSeen: RankId;
   /** Highest content unlock stage already announced. */

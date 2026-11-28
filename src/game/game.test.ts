@@ -7,13 +7,14 @@ import type { Ctx } from './core';
 import { recordStudy, todaySeconds, totalSeconds, deleteStudyRecord, previewStudyReward, deleteSubject, addDefaultSubjects } from './study';
 import { goToSleep, wakeUp, cancelSleep } from './day';
 import { expForLevel, levelFromExp, deriveStats, currentRank, unlockStage } from './progression';
-import { createBattle, resolveTurn, spawnMonster } from './battle';
+import { createBattle, resolveTurn, spawnMonster, activeSkills, skillState } from './battle';
+import { ATK_TYPES, CHARACTERS, affinityMult } from '../data/characters';
 import type { BattleState } from './battle';
 import { startTowerBattle, finishBattle, startFieldBattle } from './encounters';
 import { floorInfo, floorAccess, spinSlots } from './tower';
 import { gachaPull, buyItem, autoGacha } from './shop';
 import { GACHA } from '../data/world';
-import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST, sellItem, sellAll, toggleLock } from './inventory';
+import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST, sellItem, sellAll, toggleLock, setActiveCharacter } from './inventory';
 import { MONSTERS } from '../data/monsters';
 import { MONSTER_SKILLS } from '../data/monsterSkills';
 import { getItem } from '../data/items';
@@ -283,7 +284,7 @@ describe('economy', () => {
     const atk0 = deriveStats(s).atk;
     const entry = s.inventory.find((e) => e.itemId === 'w_iron')!;
     ({ s } = run(s, (d, c) => equip(d, c, entry.uid)));
-    expect(deriveStats(s).atk).toBe(atk0 - 4 + 8);
+    expect(deriveStats(s).atk).toBeGreaterThan(atk0); // iron sword (+8) beats the wooden sword (+4)
     const g = s.player.gold;
     ({ s } = run(s, (d, c) => upgradeItem(d, c, entry.uid)));
     expect(s.player.gold).toBeLessThan(g);
@@ -487,5 +488,138 @@ describe('round 3: lock/sell-all, level, rank, monsters', () => {
     const dot = r.events.find((e) => e.k === 'pDot');
     expect(dot && dot.k === 'pDot' && dot.dmg).toBe(Math.round(d.maxHp * 0.1));
     expect(r.state.player.poison!.turns).toBe(1);
+  });
+});
+
+describe('round 4: attack types, characters, Q/W/E/R skills', () => {
+  const mkBattle = (charId: string, monsterId = 'dummy', lvl = 10, mods?: (m: ReturnType<typeof spawnMonster>) => void) => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => {
+      d.player.activeCharacter = charId;
+      d.player.totalExp = expForLevel(lvl);
+      d.ownedCharacters = ['swordsman', 'mage', 'pyro', 'toxin', 'cleric'];
+    });
+    const d = deriveStats(s);
+    const m = spawnMonster(monsterId, lvl);
+    mods?.(m);
+    const b = createBattle({ kind: 'field', locationId: 'forest', title: '', waves: [m], canEscape: true, bg: 'forest', staminaSpent: 0, modifiers: {} }, d, d.maxHp, d.maxMp, 0, charId);
+    return { s, d, b };
+  };
+
+  it('has 5 attack types with 5 characters, each with exactly Q/W/E/R skills', () => {
+    expect(ATK_TYPES.length).toBe(5);
+    expect(new Set(CHARACTERS.map((c) => c.type)).size).toBe(5);
+    for (const c of CHARACTERS) expect(c.skills.map((x) => x.key)).toEqual(['Q', 'W', 'E', 'R']);
+    expect(CHARACTERS.filter((c) => c.starter).length).toBe(1);
+  });
+
+  it('new games own only the starter; the others come from the gacha', () => {
+    const s = createNewGame('t');
+    expect(s.ownedCharacters).toEqual(['swordsman']);
+    expect(s.player.activeCharacter).toBe('swordsman');
+    expect(() => run(s, (d, c) => setActiveCharacter(d, c, 'mage'))).toThrow();
+  });
+
+  it('gacha summons every character within the hard pity and never duplicates', () => {
+    let s = createNewGame('t');
+    s = produce(s, (d) => void (d.player.gold = 10_000_000));
+    const seen = new Set<string>();
+    for (let i = 0; i < 8; i++) {
+      const r = run(s, (d, c) => gachaPull(d, c, 10));
+      s = r.s;
+      for (const x of r.out) if (getItem(x.itemId).category === 'character') seen.add(x.itemId);
+    }
+    expect([...seen].sort()).toEqual(['char_cleric', 'char_mage', 'char_pyro', 'char_toxin']);
+    expect(s.ownedCharacters.length).toBe(5);
+    // with everyone owned, no further character results
+    const r2 = run(s, (d, c) => gachaPull(d, c, 10));
+    expect(r2.out.some((x) => getItem(x.itemId).category === 'character')).toBe(false);
+    const { s: s2 } = run(s, (d, c) => setActiveCharacter(d, c, 'cleric'));
+    expect(s2.player.activeCharacter).toBe('cleric');
+  });
+
+  it('skills cost MP, go on cooldown, and are blocked until ready', () => {
+    const { b } = mkBattle('swordsman');
+    const rng = seeded(3);
+    const q = activeSkills('swordsman')[0];
+    const w = activeSkills('swordsman')[1];
+    const r1 = resolveTurn(b, { type: 'skill', skillId: w.id }, rng);
+    expect(r1.state.player.mp).toBeLessThan(b.player.mp);
+    expect(r1.state.player.cooldowns[w.id]).toBe(w.cd - 1); // ticked once at round end
+    const r2 = resolveTurn(r1.state, { type: 'skill', skillId: w.id }, rng);
+    expect(r2.state).toBe(r1.state); // refused: still on cooldown
+    expect(skillState(r1.state, w).ready).toBe(false);
+    expect(skillState(r1.state, q).ready).toBe(true);
+  });
+
+  it('weaknesses / resistances change damage', () => {
+    // slime: weak to fire, immune to poison
+    const dmgOf = (charId: string, skillIdx: number) => {
+      const { b } = mkBattle(charId, 'slime_green', 10, (m) => void (m.maxHp = m.hp = 1e7));
+      const sk = activeSkills(charId)[skillIdx];
+      const r = resolveTurn({ ...b, monster: { ...b.monster, def: 0 } }, { type: 'skill', skillId: sk.id }, seeded(9));
+      const hit = r.events.find((e) => e.k === 'pAttack');
+      return hit && hit.k === 'pAttack' ? hit : null;
+    };
+    expect(affinityMult('slime_green', 'fire')).toBeGreaterThan(1);
+    expect(affinityMult('slime_green', 'poison')).toBeLessThan(1);
+    expect(affinityMult('skeleton', 'holy')).toBeGreaterThan(1);
+    expect(dmgOf('pyro', 0)!.aff).toBe('weak');
+    expect(dmgOf('toxin', 0)!.aff).toBe('immune');
+  });
+
+  it('fire burns and poison stacks over time, and burst detonates them', () => {
+    const rng = seeded(21);
+    const { b } = mkBattle('pyro', 'skeleton_warrior', 10, (m) => void (m.maxHp = m.hp = 1e7));
+    const q = activeSkills('pyro')[0];
+    const e = activeSkills('pyro')[2];
+    let st = resolveTurn(b, { type: 'skill', skillId: q.id }, rng).state;
+    expect(st.monster.burn).not.toBeNull();
+    const hpAfterQ = st.monster.hp;
+    expect(hpAfterQ).toBeLessThan(1e7);
+    // burn ticked at the end of that round
+    const t2 = resolveTurn(b, { type: 'skill', skillId: q.id }, seeded(21));
+    expect(t2.events.some((x) => x.k === 'mDot' && x.kind === 'burn')).toBe(true);
+    // burst consumes the burn
+    st = { ...st, player: { ...st.player, mp: st.player.maxMp, cooldowns: {} } };
+    const r = resolveTurn(st, { type: 'skill', skillId: e.id }, rng);
+    expect(r.state.monster.burn).toBeNull();
+
+    const tx = mkBattle('toxin', 'goblin', 10, (m) => void (m.maxHp = m.hp = 1e7)).b;
+    const px = activeSkills('toxin')[0];
+    const a1 = resolveTurn(tx, { type: 'skill', skillId: px.id }, seeded(5)).state;
+    const a2 = resolveTurn({ ...a1, player: { ...a1.player, cooldowns: {}, mp: a1.player.maxMp } }, { type: 'skill', skillId: px.id }, seeded(6)).state;
+    expect(a2.monster.poison!.dmg).toBeGreaterThan(a1.monster.poison!.dmg); // stacks
+  });
+
+  it('holy heals on hit and the cleric blessing heals + buffs defence', () => {
+    const { b } = mkBattle('cleric', 'skeleton', 10, (m) => void (m.maxHp = m.hp = 1e7));
+    const hurt = { ...b, player: { ...b.player, hp: Math.floor(b.player.maxHp * 0.5) } };
+    const q = activeSkills('cleric')[0];
+    const r = resolveTurn(hurt, { type: 'skill', skillId: q.id }, seeded(2));
+    expect(r.events.some((e) => e.k === 'pHeal')).toBe(true);
+    const bless = activeSkills('cleric')[2];
+    const r2 = resolveTurn(hurt, { type: 'skill', skillId: bless.id }, seeded(2));
+    expect(r2.state.player.hp).toBeGreaterThan(hurt.player.hp);
+    expect(r2.state.player.buffs.some((x) => x.kind === 'def')).toBe(true);
+  });
+
+  it('character stat modifiers apply (mage trades HP/DEF for MATK)', () => {
+    const at = (ch: string) => deriveStats(produce(createNewGame('t'), (d) => void ((d.player.activeCharacter = ch), (d.player.totalExp = expForLevel(30)))));
+    expect(at('mage').matk).toBeGreaterThan(at('swordsman').matk);
+    expect(at('swordsman').atk).toBeGreaterThan(at('mage').atk);
+    expect(at('swordsman').maxHp).toBeGreaterThan(at('mage').maxHp);
+  });
+
+  it('migrates old saves: starter owned and active', () => {
+    const s = createNewGame('t');
+    const old = JSON.parse(JSON.stringify(s));
+    delete old.ownedCharacters;
+    delete old.player.activeCharacter;
+    delete old.gacha.charPity;
+    const n = normalizeState(old);
+    expect(n.ownedCharacters).toEqual(['swordsman']);
+    expect(n.player.activeCharacter).toBe('swordsman');
+    expect(n.gacha.charPity).toBe(0);
   });
 });

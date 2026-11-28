@@ -36,6 +36,8 @@ export const GACHA = {
   auto: 250, // per pull — auto summon is a premium convenience (single 150, 10-pull 135)
   autoMaxPulls: [10, 30, 50, 100] as const,
   pity: 60, // guaranteed Legendary+ after this many pulls without one
+  charRate: 6, // % chance per pull to summon a not-yet-owned character
+  charPity: 25, // guaranteed character after this many pulls without one
   rates: [
     ['common', 45],
     ['uncommon', 30],

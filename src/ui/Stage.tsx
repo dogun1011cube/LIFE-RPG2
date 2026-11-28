@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react';
 import type { BgId } from '../data/world';
 import { drawAmbient, getBackground, GROUND_Y, VH, VW } from '../render/backgrounds';
 import { monsterCanvas, spriteCanvas } from '../render/draw';
+import type { HeroSpriteId } from '../render/sprites';
 import { getMonster } from '../data/monsters';
 
 /** Small animated scene: background + hero (+ optional monster). */
-export function Stage(props: { bg: BgId; heroPalette: Record<string, string>; aura?: string | null; monster?: string | null; className?: string; heroX?: number }) {
+export function Stage(props: { bg: BgId; heroSprite?: HeroSpriteId; heroPalette: Record<string, string>; aura?: string | null; monster?: string | null; className?: string; heroX?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const palKey = JSON.stringify(props.heroPalette);
   useEffect(() => {
@@ -14,7 +15,7 @@ export function Stage(props: { bg: BgId; heroPalette: Record<string, string>; au
     c.height = VH;
     const ctx = c.getContext('2d')!;
     ctx.imageSmoothingEnabled = false;
-    const hero = spriteCanvas('hero', props.heroPalette);
+    const hero = spriteCanvas(props.heroSprite ?? 'hero', props.heroPalette);
     const mon = props.monster ? monsterCanvas(props.monster) : null;
     const mdef = props.monster ? getMonster(props.monster) : null;
     const crown = spriteCanvas('crown');
@@ -59,6 +60,6 @@ export function Stage(props: { bg: BgId; heroPalette: Record<string, string>; au
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [props.bg, palKey, props.aura, props.monster, props.heroX]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [props.bg, props.heroSprite, palKey, props.aura, props.monster, props.heroX]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className={`pixel stage ${props.className || ''}`} />;
 }

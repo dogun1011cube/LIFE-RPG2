@@ -24,6 +24,7 @@ import {
 import { FLOOR_H, floorY, renderTower, TOWER_W, towerHeight } from '../../render/TowerArt';
 import { act, useGame } from '../../store/store';
 import { stageReqText } from '../../data/ranks';
+import { CharacterPicker } from '../CharacterPanel';
 import { Bar, Btn, ItemIcon, Modal, MonsterSkillInfo, MonsterSprite, PixelIcon, RarityText, Win } from '../components';
 import { setUI, useUI } from '../uiStore';
 
@@ -234,6 +235,12 @@ export function Tower() {
           </div>
 
           {!access.ok && <div className="warn-line">{access.reason}</div>}
+          {info.waves.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div className="tiny muted">출전 캐릭터</div>
+              <CharacterPicker compact />
+            </div>
+          )}
 
           <div className="col" style={{ marginTop: 12 }}>
             {(info.type === 'battle' || info.type === 'elite' || info.type === 'boss' || info.type === 'special') && (
