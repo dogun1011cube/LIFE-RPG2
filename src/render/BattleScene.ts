@@ -2,7 +2,9 @@ import { getMonster } from '../data/monsters';
 import type { BgId } from '../data/world';
 import type { BattleEvent, MonsterInstance } from '../game/battle';
 import { drawAmbient, getBackground, GROUND_Y, VH, VW } from './backgrounds';
-import { makeCanvas, monsterCanvas, silhouette, spriteCanvas } from './draw';
+import { iconCanvas, makeCanvas, monsterCanvas, silhouette, spriteCanvas } from './draw';
+import { PETS } from '../data/pets';
+import type { PetKind } from '../data/pets';
 import type { HeroSpriteId } from './sprites';
 
 // ─────────────────────────────────────────────────────────────
@@ -84,6 +86,10 @@ export class BattleScene {
   bg: BgId = 'forest';
   heroImg: HTMLCanvasElement;
   heroAura: string | null = null;
+  petImg: HTMLCanvasElement | null = null;
+  petKind: PetKind | null = null;
+  petSecret = false;
+  pet = { offX: 0, offY: 0 };
   hero = { x: 72, y: GROUND_Y + 8, offX: 0, flashUntil: 0, flashColor: '#ff4d4d', guardUntil: 0, alpha: 1, down: false };
   monster: SceneMonster | null = null;
   particles: Particle[] = [];
@@ -132,6 +138,17 @@ export class BattleScene {
   setHero(sprite: HeroSpriteId, palette: Record<string, string>, aura: string | null) {
     this.heroImg = spriteCanvas(sprite, palette);
     this.heroAura = aura;
+  }
+
+  /** The pet floating next to the hero (null = none). */
+  setPet(kind: PetKind | null, secret = false) {
+    this.petKind = kind;
+    this.petSecret = secret;
+    this.petImg = kind ? iconCanvas('pet_' + kind, PETS[kind].color) : null;
+  }
+
+  petCenter() {
+    return { x: this.hero.x - 30 + this.pet.offX, y: this.hero.y - 54 + this.pet.offY };
   }
 
   setMonster(inst: MonsterInstance, entering = true) {
@@ -313,6 +330,18 @@ export class BattleScene {
           await this.wait(m?.slime ? 380 : 260);
         }
         if (melee && this.hero.offX !== 0) await this.heroBack();
+        break;
+      }
+      case 'petAct': {
+        const c = this.monsterCenter();
+        const color = PETS[ev.kind].color;
+        if (ev.hitIndex === 0) await this.tween(140, (k) => (this.pet.offX = ease(k) * 70));
+        if (this.monster) this.monster.flashUntil = this.now() + 90;
+        this.burst(c.x - 6 + ev.hitIndex * 8, c.y, [color, '#ffffff'], 12, 70, 20);
+        this.text(String(ev.dmg), c.x + ev.hitIndex * 10, c.y - c.h / 2, color, 12, 'PET');
+        await this.wait(200);
+        const from = this.pet.offX;
+        await this.tween(160, (k) => (this.pet.offX = from * (1 - easeInOut(k))));
         break;
       }
       case 'mDot': {
@@ -549,6 +578,7 @@ export class BattleScene {
 
     this.drawMonster(ctx, now, t);
     this.drawHero(ctx, now, t);
+    this.drawPet(ctx, t);
     this.drawFx(ctx, now);
 
     // particles
@@ -608,6 +638,24 @@ export class BattleScene {
       const w = Math.round(rx * Math.sqrt(1 - (dy * dy) / (ry * ry)));
       ctx.fillRect(Math.round(cx - w), Math.round(cy + dy), w * 2, 1);
     }
+  }
+
+  private drawPet(ctx: CanvasRenderingContext2D, t: number) {
+    if (!this.petImg || this.hero.down) return;
+    const c = this.petCenter();
+    const bob = this.reduceMotion ? 0 : Math.sin(t * 3) * 3;
+    const x = Math.round(c.x - 12);
+    const y = Math.round(c.y - 12 + bob);
+    if (this.petSecret) {
+      const g = ctx.createRadialGradient(c.x, c.y + bob, 2, c.x, c.y + bob, 20);
+      g.addColorStop(0, this.petKind === 'devil' ? 'rgba(255,60,60,0.55)' : 'rgba(255,245,200,0.6)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(c.x - 22, c.y - 22 + bob, 44, 44);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    this.ellipse(ctx, c.x, this.hero.y - 4, 7, 2);
+    ctx.drawImage(this.petImg, x, y, 24, 24);
   }
 
   private drawHero(ctx: CanvasRenderingContext2D, now: number, t: number) {

@@ -10,6 +10,7 @@ import type { BattleResult } from '../../game/encounters';
 import { continueTower, finishBattle, startFieldBattle, startTowerBattle } from '../../game/encounters';
 import { deriveStats } from '../../game/progression';
 import { towerNextStep } from '../../game/tower';
+import { PETS } from '../../data/pets';
 import { BattleScene, MELEE_FX } from '../../render/BattleScene';
 import { act, getState, useGame } from '../../store/store';
 import { Bar, Btn, ItemIcon, PixelIcon, RarityText } from '../components';
@@ -32,7 +33,8 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
   const battleRef = useRef<BattleState | null>(null);
   const [battle, setBattle] = useState<BattleState>(() => {
     const st = getState();
-    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold, st.player.activeCharacter);
+    const pet = st.pets?.find((x) => x.uid === st.player.activePet) ?? null;
+    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold, st.player.activeCharacter, pet);
     battleRef.current = b;
     return b;
   });
@@ -67,6 +69,10 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
     scene.speed = speed;
     scene.setBackground(setup.bg);
     scene.setHero(heroSprite(st), heroPalette(st), heroAura(st));
+    {
+      const pet = st.pets?.find((x) => x.uid === st.player.activePet);
+      scene.setPet(pet ? pet.kind : null, pet?.rarity === 'secret');
+    }
     scene.setMonster(battle.monster, true);
     playSfx('door');
     const first = battle.monster;
@@ -115,6 +121,14 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
         await scene.play(ev);
         return;
       }
+      case 'petAct':
+        later(140, () => {
+          playSfx(ev.hitIndex ? 'hit' : 'magic');
+          setMHp(ev.mHp);
+        });
+        pushLog(`${PETS[ev.kind].name}: ${ev.dmg} 피해!${ev.aff === 'weak' ? ' (약점!)' : ''}`, 'good');
+        await scene.play(ev);
+        return;
       case 'mDot':
         playSfx('hit');
         setMHp(ev.mHp);

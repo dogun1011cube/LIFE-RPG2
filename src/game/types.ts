@@ -1,4 +1,5 @@
 import type { AtkType } from '../data/characters';
+import type { PetKind, PetRarity } from '../data/pets';
 
 // ─────────────────────────────────────────────────────────────
 // LIFE RPG — core type definitions
@@ -198,6 +199,8 @@ export interface PlayerState {
   cosmetics: { title: string | null; cape: string | null; aura: string | null };
   /** Character used in battle (shares level / EXP / gear). */
   activeCharacter: string;
+  /** uid of the pet that joins battles (null = none). */
+  activePet: string | null;
   studyBuff: { expPct: number; goldPct: number };
 }
 
@@ -222,6 +225,7 @@ export interface LifetimeStats {
   daysCompleted: number;
   synthesized: number;
   autoGachaRuns: number;
+  petMerges: number;
 }
 
 export interface TowerState {
@@ -241,9 +245,22 @@ export interface MonsterRecord {
 
 export interface GachaRecord {
   at: number;
+  /** Item id — or "pet:<kind>" for pet summons. */
   itemId: string;
   rarity: Rarity;
   converted?: number; // gold refund for duplicate cosmetic
+  banner?: GachaBanner;
+}
+
+export type GachaBanner = 'equip' | 'char' | 'pet';
+
+/** An owned pet (spirit). */
+export interface PetEntry {
+  uid: string;
+  kind: PetKind;
+  rarity: PetRarity;
+  obtainedAt: number;
+  locked?: boolean;
 }
 
 export interface RealReward {
@@ -278,7 +295,9 @@ export interface GameState {
   tower: TowerState;
   quests: { dailyClaimed: string[]; achievementsClaimed: string[]; notified: string[] };
   monsters: Record<string, MonsterRecord>;
-  gacha: { pulls: number; pity: number; charPity: number; history: GachaRecord[] };
+  gacha: { pulls: number; pity: number; charPity: number; charPulls: number; petPulls: number; petPity: number; history: GachaRecord[] };
+  /** Owned pets. */
+  pets: PetEntry[];
   stats: LifetimeStats;
   /** Item ids ever obtained (codex). */
   discovered: string[];

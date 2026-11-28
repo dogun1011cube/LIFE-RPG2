@@ -24,6 +24,8 @@ import { ACC_KIND_ORDER } from '../data/accessories';
 import { ICON_ALIAS, ICONS } from '../render/sprites';
 import { rankAtLeast } from '../data/ranks';
 import { rollItemOfRarity } from './loot';
+import { addPet, charGachaPull, fusePets, mergeAllPets, mergePets, petGachaPull, setActivePet, unownedCharacters } from './pets';
+import { PET_GACHA, petPassive } from '../data/pets';
 import { metricValue, claimQuest } from './quests';
 import { migrateLegacy } from '../store/persistence';
 import { seeded } from './rng';
@@ -526,18 +528,20 @@ describe('round 4: attack types, characters, Q/W/E/R skills', () => {
     expect(() => run(s, (d, c) => setActiveCharacter(d, c, 'mage'))).toThrow();
   });
 
-  it('gacha summons every character within the hard pity and never duplicates', () => {
+  it('the character banner summons every character within the hard pity and never duplicates', () => {
     let s = createNewGame('t');
     s = produce(s, (d) => void (d.player.gold = 10_000_000));
     const seen = new Set<string>();
-    for (let i = 0; i < 8; i++) {
-      const r = run(s, (d, c) => gachaPull(d, c, 10));
+    for (let i = 0; i < 9 && unownedCharacters(s).length; i++) {
+      const r = run(s, (d, c) => charGachaPull(d, c, 10));
       s = r.s;
-      for (const x of r.out) if (getItem(x.itemId).category === 'character') seen.add(x.itemId);
+      for (const x of r.out) if (x.character) seen.add(x.itemId);
     }
     expect([...seen].sort()).toEqual(['char_cleric', 'char_mage', 'char_pyro', 'char_toxin']);
     expect(s.ownedCharacters.length).toBe(5);
-    // with everyone owned, no further character results
+    // with everyone owned the banner closes
+    expect(() => run(s, (d, c) => charGachaPull(d, c, 1))).toThrow('모든 캐릭터');
+    // the equipment banner never gives characters any more
     const r2 = run(s, (d, c) => gachaPull(d, c, 10));
     expect(r2.out.some((x) => getItem(x.itemId).category === 'character')).toBe(false);
     const { s: s2 } = run(s, (d, c) => setActiveCharacter(d, c, 'cleric'));
@@ -899,5 +903,105 @@ describe('tower: continue climbing from the result screen', () => {
   it('respects sealed floors', () => {
     const s = produce(at(20), (d) => void (d.player.totalExp = 0));
     expect(towerNextStep(s, 20).kind).toBe('locked');
+  });
+});
+
+describe('pets', () => {
+  const withPets = (list: [string, string][], gold = 0) =>
+    produce(createNewGame('t'), (d) => {
+      d.player.gold = gold;
+      d.player.totalExp = expForLevel(20);
+      for (const [k, r] of list) addPet(d, null, k as never, r as never);
+    });
+
+  it('3 same pets merge into the next grade; mixed or active pets are refused', () => {
+    let s = withPets([['undine', 'common'], ['undine', 'common'], ['undine', 'common'], ['undine', 'common'], ['bell', 'common']]);
+    const active = s.player.activePet!; // the first pet joined automatically
+    const ids = s.pets.filter((p) => p.uid !== active && p.kind === 'undine').map((p) => p.uid);
+    expect(ids).toHaveLength(3);
+    expect(() => run(s, (d, c) => mergePets(d, c, [active, ids[0], ids[1]]))).toThrow('함께하는 중');
+    const bell = s.pets.find((p) => p.kind === 'bell')!.uid;
+    expect(() => run(s, (d, c) => mergePets(d, c, [ids[0], ids[1], bell]))).toThrow('같은 정령');
+    const r = run(s, (d, c) => mergePets(d, c, ids));
+    s = r.s;
+    expect(r.out.rarity).toBe('uncommon');
+    expect(s.pets.length).toBe(3);
+  });
+
+  it('merge-all chains upward all the way to Mythic', () => {
+    // 243 commons = 1 mythic (3^5)
+    const s = withPets(Array.from({ length: 244 }, () => ['zagred', 'common'] as [string, string]));
+    const { s: s1 } = run(s, (d, c) => mergeAllPets(d, c));
+    const grades = s1.pets.map((p) => p.rarity).sort();
+    expect(grades).toEqual(['common', 'mythic']); // the active common stays out of merging
+  });
+
+  it('Mythic water + wind + light → Angel, fire + dark + destruction → Devil (Secret)', () => {
+    const s = withPets([['licht', 'common'], ['undine', 'mythic'], ['bell', 'mythic'], ['licht', 'mythic'], ['salamander', 'mythic'], ['yami', 'mythic'], ['zagred', 'mythic']]);
+    const r1 = run(s, (d, c) => fusePets(d, c, 'angel'));
+    expect(r1.out).toMatchObject({ kind: 'angel', rarity: 'secret' });
+    const r2 = run(r1.s, (d, c) => fusePets(d, c, 'devil'));
+    expect(r2.out).toMatchObject({ kind: 'devil', rarity: 'secret' });
+    expect(r2.s.pets.map((p) => p.kind).sort()).toEqual(['angel', 'devil', 'licht']);
+    // missing mythic → refused
+    expect(() => run(withPets([['undine', 'mythic'], ['bell', 'mythic'], ['licht', 'legendary']]), (d, c) => fusePets(d, c, 'angel'))).toThrow('신화');
+  });
+
+  it('pet summon: grades up to Legendary only, Epic pity, 10-pull guarantee', () => {
+    let s = withPets([], 10_000_000);
+    const grades = new Set<string>();
+    let sinceEpic = 0;
+    let maxGap = 0;
+    for (let i = 0; i < 40; i++) {
+      const r = run(s, (d, c) => petGachaPull(d, c, 10), makeCtx(seeded(900 + i), 1));
+      s = r.s;
+      expect(r.out.some((x) => ['rare', 'epic', 'legendary'].includes(x.rarity))).toBe(true);
+      for (const x of r.out) {
+        grades.add(x.rarity);
+        if (x.rarity === 'epic' || x.rarity === 'legendary') sinceEpic = 0;
+        else maxGap = Math.max(maxGap, ++sinceEpic);
+      }
+    }
+    expect(grades.has('mythic')).toBe(false);
+    expect(grades.has('secret')).toBe(false);
+    expect(maxGap).toBeLessThan(PET_GACHA.pity);
+    expect(s.pets.length).toBe(400);
+    expect(s.gacha.petPulls).toBe(400);
+  });
+
+  it('the active pet gives its passive and acts in battle', () => {
+    const s0 = withPets([['zagred', 'legendary']]);
+    const base = deriveStats(produce(s0, (d) => void (d.player.activePet = null)));
+    const withPet = deriveStats(s0);
+    expect(withPet.pierce).toBeGreaterThan(base.pierce);
+    expect(petPassive('zagred', 'legendary').pierce).toBeCloseTo(5.5, 1);
+    const pet = s0.pets[0];
+    const m = spawnMonster('slime_green', 20);
+    m.maxHp = m.hp = 1e8;
+    const b = createBattle({ kind: 'field', locationId: 'forest', title: '', waves: [m], canEscape: true, bg: 'forest', staminaSpent: 0, modifiers: {} }, withPet, withPet.maxHp, withPet.maxMp, 0, 'swordsman', pet);
+    const r = resolveTurn(b, { type: 'defend' }, seeded(4));
+    const hit = r.events.find((e) => e.k === 'petAct');
+    expect(hit && hit.k === 'petAct' && hit.dmg).toBeGreaterThan(0);
+    expect(r.state.monster.hp).toBeLessThan(1e8);
+    // undine heals
+    const s1 = withPets([['undine', 'mythic']]);
+    const d1 = deriveStats(s1);
+    const b1 = createBattle({ kind: 'field', locationId: 'forest', title: '', waves: [spawnMonster('slime_green', 1)], canEscape: true, bg: 'forest', staminaSpent: 0, modifiers: {} }, d1, 10, d1.maxMp, 0, 'swordsman', s1.pets[0]);
+    const r1 = resolveTurn(b1, { type: 'defend' }, seeded(4));
+    expect(r1.events.some((e) => e.k === 'pHeal')).toBe(true);
+    // switching the partner
+    const { s: s2 } = run(s1, (d, c) => setActivePet(d, c, null));
+    expect(s2.player.activePet).toBeNull();
+  });
+
+  it('old saves get an empty pet box', () => {
+    const old = JSON.parse(JSON.stringify(createNewGame('t')));
+    delete old.pets;
+    delete old.player.activePet;
+    delete old.gacha.petPity;
+    const n = normalizeState(old);
+    expect(n.pets).toEqual([]);
+    expect(n.player.activePet).toBeNull();
+    expect(n.gacha.petPity).toBe(0);
   });
 });

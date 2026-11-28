@@ -4,6 +4,8 @@ import { monsterSkills } from '../data/monsterSkills';
 import type { AtkType, CSkill, CSkillFx } from '../data/characters';
 import { affinityMult, affinityOf, ATK_INFO, getCharacter, skillMp } from '../data/characters';
 import type { BgId } from '../data/world';
+import type { PetKind, PetRarity } from '../data/pets';
+import { petAction, PETS } from '../data/pets';
 import type { Rng } from './rng';
 import { pick } from './rng';
 import type { ConsumableEffect, DerivedStats } from './types';
@@ -158,6 +160,8 @@ export interface BattlePlayer {
   mpSave?: number; // % skill MP reduction
   dodge?: number; // % extra evasion
   dmgReduce?: number; // % less damage taken
+  /** The pet fighting along (acts after each player action). */
+  pet?: { kind: PetKind; rarity: PetRarity } | null;
 }
 
 export interface BattleState {
@@ -196,6 +200,7 @@ export type BattleEvent =
   | { k: 'escape'; ok: boolean }
   | { k: 'victory' }
   | { k: 'pDot'; dmg: number; pHp: number; text: string }
+  | { k: 'petAct'; kind: PetKind; dmg: number; mHp: number; hitIndex: number; aff?: Aff }
   | { k: 'defeat' };
 
 export type PlayerAction =
@@ -205,7 +210,7 @@ export type PlayerAction =
   | { type: 'defend' }
   | { type: 'escape' };
 
-export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp: number, gold: number, charId = 'swordsman'): BattleState {
+export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp: number, gold: number, charId = 'swordsman', pet: { kind: PetKind; rarity: PetRarity } | null = null): BattleState {
   const ch = getCharacter(charId);
   const first = setup.waves[0];
   if (setup.modifiers.doom13) first.doom = 13;
@@ -243,6 +248,7 @@ export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp
       mpSave: d.mpSave ?? 0,
       dodge: d.dodge ?? 0,
       dmgReduce: d.dmgReduce ?? 0,
+      pet: pet ? { kind: pet.kind, rarity: pet.rarity } : null,
     },
     turn: 1,
     over: null,
@@ -469,6 +475,42 @@ function useSkill(b: BattleState, ev: BattleEvent[], rng: Rng, skill: CSkill) {
   }
 }
 
+/** The pet's action: attack (vs. monster affinities), heal, MP restore, drain. */
+function petTurn(b: BattleState, ev: BattleEvent[], rng: Rng) {
+  const pet = b.player.pet;
+  if (!pet) return;
+  const def = PETS[pet.kind];
+  const a = petAction(pet.kind, pet.rarity);
+  const p = b.player;
+  const m = b.monster;
+  ev.push({ k: 'text', text: `${def.name}의 ${def.actionText}!`, tone: 'good' });
+  let dealt = 0;
+  if (a.attack && !isDummy(m)) {
+    const stat = Math.max(playerAtk(p), playerMatk(p));
+    const type = a.type ?? 'magic';
+    for (let i = 0; i < (a.hits || 1); i++) {
+      if (m.hp <= 0) break;
+      let dmg = calcDamage(stat, monsterDef(m), rng, a.attack, 0.3) * affinityMult(m.defId, type);
+      dmg = Math.max(1, Math.round(dmg));
+      m.hp = Math.max(0, m.hp - dmg);
+      dealt += dmg;
+      b.stats.dmgDealt += dmg;
+      b.stats.maxHit = Math.max(b.stats.maxHit, dmg);
+      ev.push({ k: 'petAct', kind: pet.kind, dmg, mHp: m.hp, hitIndex: i, aff: affOf(m.defId, type) });
+    }
+  } else if (a.attack && isDummy(m)) {
+    // training dummy: show the hit without "killing" it
+    const dmg = Math.max(1, Math.round(calcDamage(Math.max(playerAtk(p), playerMatk(p)), monsterDef(m), rng, a.attack, 0.3)));
+    ev.push({ k: 'petAct', kind: pet.kind, dmg, mHp: m.hp, hitIndex: 0 });
+  }
+  if (a.drainPct && dealt > 0) healPlayer(b, ev, (dealt * a.drainPct) / 100);
+  if (a.healPct) healPlayer(b, ev, (p.maxHp * a.healPct) / 100);
+  if (a.mpPct && p.mp < p.maxMp) {
+    p.mp = Math.min(p.maxMp, p.mp + Math.max(1, Math.round((p.maxMp * a.mpPct) / 100)));
+    ev.push({ k: 'pMp', pMp: p.mp });
+  }
+}
+
 /** End-of-round burn / poison on the monster. Returns true if the battle just ended or the monster changed. */
 function tickMonsterDots(b: BattleState, ev: BattleEvent[]) {
   const m = b.monster;
@@ -588,6 +630,9 @@ export function resolveTurn(input: BattleState, action: PlayerAction, rng: Rng):
       break;
     }
   }
+
+  // the pet acts right after the player
+  if (b.monster.hp > 0 && action.type !== 'escape') petTurn(b, ev, rng);
 
   if (!checkMonsterDeath(b, ev)) monsterActs = false;
   if (b.over) return { state: b, events: ev };

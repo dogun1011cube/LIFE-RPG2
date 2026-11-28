@@ -10,6 +10,7 @@ import { DayFlow } from './DayFlow';
 import { askCancelReward, BigOverlays, ConfirmHost, RealRewardWatcher, Toasts } from './overlays';
 import { BattleMenu } from './screens/BattleMenu';
 import { BattleView } from './screens/BattleView';
+import { Pets } from './screens/Pets';
 import { Gacha } from './screens/Gacha';
 import { Home } from './screens/Home';
 import { Inventory } from './screens/Inventory';
@@ -31,6 +32,7 @@ export const NAV: { id: Screen; en: string; ko: string; icon: string; tint: stri
   { id: 'tower', en: 'TOWER', ko: '탑', icon: 'tower', tint: '#9b6bff' },
   { id: 'shop', en: 'SHOP', ko: '상점', icon: 'coin', tint: '#ffcf4a' },
   { id: 'gacha', en: 'GACHA', ko: '소환', icon: 'orb', tint: '#e599f7' },
+  { id: 'pets', en: 'PETS', ko: '펫', icon: 'pet_undine', tint: '#4dabf7' },
   { id: 'inventory', en: 'INVENTORY', ko: '가방', icon: 'bag', tint: '#c8935a' },
   { id: 'quests', en: 'QUESTS', ko: '퀘스트', icon: 'quest', tint: '#e9c46a' },
   { id: 'settings', en: 'SETTINGS', ko: '설정', icon: 'gear', tint: '#adb5bd' },
@@ -44,6 +46,7 @@ const SCREENS: Record<Screen, () => React.ReactElement> = {
   tower: Tower,
   shop: Shop,
   gacha: Gacha,
+  pets: Pets,
   inventory: Inventory,
   quests: Quests,
   settings: Settings,
@@ -214,7 +217,7 @@ function Nav() {
             <span className="tiny">{n.ko}</span>
           </span>
           {n.id === 'quests' && claim > 0 && <span className="badge">{claim}</span>}
-          <span className="nav-key tiny dim">{(i + 1) % 10}</span>
+          {i < 10 && <span className="nav-key tiny dim">{(i + 1) % 10}</span>}
         </button>
       ))}
     </nav>
