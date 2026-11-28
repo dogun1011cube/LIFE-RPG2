@@ -10,8 +10,8 @@ import { expForLevel, levelFromExp, deriveStats, currentRank, unlockStage } from
 import { createBattle, resolveTurn, spawnMonster, activeSkills, skillState } from './battle';
 import { ATK_TYPES, CHARACTERS, affinityMult } from '../data/characters';
 import type { BattleState } from './battle';
-import { startTowerBattle, finishBattle, startFieldBattle } from './encounters';
-import { floorInfo, floorAccess, spinSlots } from './tower';
+import { startTowerBattle, finishBattle, startFieldBattle, continueTower } from './encounters';
+import { floorInfo, floorAccess, spinSlots, towerNextStep } from './tower';
 import { gachaPull, buyItem, autoGacha } from './shop';
 import { GACHA } from '../data/world';
 import { equip, upgradeItem, useItem, synthesize, checkSynthesis, SYNTH_COST, sellItem, sellAll, toggleLock, setActiveCharacter } from './inventory';
@@ -844,5 +844,60 @@ describe('round 6: armor materials, set bonuses, accessory kinds', () => {
       const r2 = run(s0, (d, c) => synthesize(d, c, ['x', 'y', 'z']), makeCtx(seeded(seed), 1)).out;
       expect(getItem(r2.itemId).accKind).toBe('charm');
     }
+  });
+});
+
+describe('tower: continue climbing from the result screen', () => {
+  const at = (highest: number, stamina = 50) =>
+    produce(createNewGame('t'), (d) => {
+      d.tower.highestCleared = highest;
+      d.player.stamina = stamina;
+      d.player.totalExp = expForLevel(40);
+    });
+
+  it('goes straight to the next battle floor', () => {
+    const s = at(1);
+    expect(towerNextStep(s, 1)).toMatchObject({ kind: 'battle', floor: 2, stamina: floorInfo(2).stamina });
+    const { s: s1, out } = run(s, (d, c) => continueTower(d, c, 1));
+    expect(out.floor).toBe(2);
+    expect(s1.player.stamina).toBe(50 - floorInfo(2).stamina);
+  });
+
+  it('opens an unopened treasure floor on the way, then starts the next battle', () => {
+    const s = at(2);
+    const step = towerNextStep(s, 2);
+    expect(step).toMatchObject({ kind: 'battle', floor: 4, treasure: 3 });
+    expect(step.stamina).toBe(floorInfo(3).stamina + floorInfo(4).stamina);
+    const { s: s1, out } = run(s, (d, c) => continueTower(d, c, 2));
+    expect(out.floor).toBe(4);
+    expect(s1.tower.highestCleared).toBe(3);
+  });
+
+  it('skips cleared treasure / event / merchant floors and sends choice floors to the tower screen', () => {
+    // replaying 7F when 8F (event) and 9F (merchant) are already cleared → 10F boss
+    expect(towerNextStep(at(12), 7)).toMatchObject({ kind: 'battle', floor: 10 });
+    // 8F event not cleared yet → needs the tower screen
+    expect(towerNextStep(at(7), 7)).toMatchObject({ kind: 'visit', floor: 8 });
+    // 13F needs the seal quiz → tower screen
+    expect(towerNextStep(at(12), 12)).toMatchObject({ kind: 'visit', floor: 13 });
+  });
+
+  it('is atomic: without enough stamina nothing is spent (treasure stays closed)', () => {
+    const s = at(2, 0);
+    const r = (() => {
+      try {
+        run(s, (d, c) => continueTower(d, c, 2));
+        return 'ok';
+      } catch (e) {
+        return (e as Error).message;
+      }
+    })();
+    expect(r).toContain('기력이 부족');
+    expect(s.tower.highestCleared).toBe(2);
+  });
+
+  it('respects sealed floors', () => {
+    const s = produce(at(20), (d) => void (d.player.totalExp = 0));
+    expect(towerNextStep(s, 20).kind).toBe('locked');
   });
 });

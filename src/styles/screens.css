@@ -2815,3 +2815,14 @@
     grid-template-columns: 1fr;
   }
 }
+.climb-info {
+  text-align: center;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.climb-info b {
+  color: var(--text);
+}
+.climb-info b.red-t {
+  color: var(--red);
+}

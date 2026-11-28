@@ -4,11 +4,11 @@ import { rankAtLeast } from '../data/ranks';
 import type { BattleSetup, BattleState, MonsterInstance } from './battle';
 import { spawnMonster, totalRewards } from './battle';
 import type { Ctx } from './core';
-import { addItem, GameError, gainExp, gainGold, recordMonsterSeen, sfx } from './core';
+import { addItem, GameError, gainExp, gainGold, recordMonsterSeen, sfx, toast } from './core';
 import { rollDrop, rollItemOfRarity } from './loot';
 import { deriveStats, unlockStage } from './progression';
 import { pick, randInt } from './rng';
-import { clearFloor, floorAccess, floorInfo, isCleared } from './tower';
+import { clearFloor, floorAccess, floorInfo, isCleared, towerNextStep } from './tower';
 import type { GameState } from './types';
 
 function requireAwake(s: GameState) {
@@ -193,6 +193,22 @@ export function claimTreasureFloor(s: GameState, ctx: Ctx, f: number) {
   payStamina(s, info.stamina);
   sfx(ctx, 'chest');
   return clearFloor(s, ctx, f);
+}
+
+/**
+ * "Continue climbing" from the battle result: opens an unopened treasure floor on the
+ * way (if any) and starts the next battle floor. Atomic — if anything fails (e.g. not
+ * enough stamina), nothing is spent.
+ */
+export function continueTower(s: GameState, ctx: Ctx, from: number): BattleSetup {
+  const step = towerNextStep(s, from);
+  if (step.kind !== 'battle') throw new GameError(step.reason ?? `${step.floor}층은 탑 화면에서 진행해 주세요.`);
+  if (s.player.stamina < step.stamina) throw new GameError(`기력이 부족합니다. (필요 ${step.stamina}, 보유 ${s.player.stamina}) — 공부 10분마다 기력 1을 얻어요.`);
+  if (step.treasure) {
+    const lines = claimTreasureFloor(s, ctx, step.treasure);
+    toast(ctx, 'tower', `${step.treasure}F 보물상자 개봉`, lines.join(' · '));
+  }
+  return startTowerBattle(s, ctx, step.floor);
 }
 
 /** Event / merchant floors: resolve and clear. */
