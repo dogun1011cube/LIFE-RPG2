@@ -20,6 +20,7 @@ import { Status } from './screens/Status';
 import { Study } from './screens/Study';
 import { Tower } from './screens/Tower';
 import type { Screen } from './uiStore';
+import { UidChip } from './online/AccountUI';
 import { go, setUI, useUI } from './uiStore';
 
 export const NAV: { id: Screen; en: string; ko: string; icon: string; tint: string }[] = [
@@ -150,6 +151,7 @@ function Hud() {
         </div>
       </div>
       <div className="hud-res">
+        <UidChip />
         <div className="hud-pill gold" title="골드">
           <PixelIcon icon="coin" tint="#ffcf4a" size={18} />
           <Ticker value={s.player.gold} />

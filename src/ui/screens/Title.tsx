@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { playSfx } from '../../audio/sfx';
 import { Btn, MonsterSprite } from '../components';
+import { TitleAccountBox, useAccountBusy } from '../online/AccountUI';
+import { onlineConfigured } from '../../online/config';
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -19,6 +21,7 @@ export function Title(props: {
     const id = setInterval(() => setBlink((b) => !b), 600);
     return () => clearInterval(id);
   }, []);
+  const busy = useAccountBusy();
   const legacyMinutes = props.legacy ? Math.floor(Number(props.legacy.totalSeconds || 0) / 60) : 0;
 
   return (
@@ -38,11 +41,13 @@ export function Title(props: {
           <MonsterSprite id="slime_king" scale={6} />
         </div>
 
+        {mode === 'menu' && <TitleAccountBox />}
+
         {mode === 'menu' && (
           <div className="title-menu win">
             {props.hasSave && (
-              <Btn variant="gold" size="lg" block onClick={props.onContinue} sfx="confirm" autoFocus>
-                ▶ CONTINUE <span className="kbd">이어하기</span>
+              <Btn variant="gold" size="lg" block onClick={props.onContinue} sfx="confirm" autoFocus disabled={busy}>
+                ▶ CONTINUE <span className="kbd">{busy ? '클라우드 확인 중…' : '이어하기'}</span>
               </Btn>
             )}
             {props.legacy && !props.hasSave && (
@@ -96,7 +101,7 @@ export function Title(props: {
           — 공부할수록 강해지는 레트로 RPG —
         </div>
       </div>
-      <div className="title-foot tiny dim">LIFE RPG v3.0 · 진행 상황은 이 브라우저에 자동 저장됩니다</div>
+      <div className="title-foot tiny dim">LIFE RPG v3.0 · {onlineConfigured() ? '로그인하면 진행 상황이 클라우드에 저장됩니다' : '진행 상황은 이 브라우저에 자동 저장됩니다'}</div>
     </div>
   );
 }

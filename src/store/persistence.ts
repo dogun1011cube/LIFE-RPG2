@@ -7,6 +7,8 @@ import type { DaySummary, GameState, StudyRecord } from '../game/types';
 //   lifeRPG3.save       — main save (written on every change, debounced)
 //   lifeRPG3.backup     — previous save, rotated at most every 10 min
 //   lifeRPG3.snapshots  — last 3 "start of day" snapshots
+// Each online account gets its own copy of these slots: "<key>@<authId>".
+// The guest slots (no suffix) are never touched by account play.
 // The previous version's key (lifeRpg2_state_v1) is only READ, never
 // modified or deleted.
 // ─────────────────────────────────────────────────────────────
@@ -14,7 +16,78 @@ export const KEY_SAVE = 'lifeRPG3.save';
 export const KEY_BACKUP = 'lifeRPG3.backup';
 export const KEY_SNAPSHOTS = 'lifeRPG3.snapshots';
 export const KEY_LEGACY_DONE = 'lifeRPG3.legacyMigrated';
+export const KEY_PROFILE = 'lifeRPG3.profile';
+export const KEY_SYNC = 'lifeRPG3.sync';
 export const LEGACY_KEY = 'lifeRpg2_state_v1';
+
+/** Which local save slot is active: the guest slot, or an online account's slot. */
+export interface Profile {
+  /** 'guest' or the account's auth id. */
+  id: string;
+  uid?: number;
+  username?: string;
+}
+export const GUEST: Profile = { id: 'guest' };
+
+function readProfile(): Profile {
+  const v = readJSON(KEY_PROFILE) as Profile | null;
+  return v && typeof v.id === 'string' && v.id ? v : GUEST;
+}
+
+let profile: Profile = GUEST;
+let profileLoaded = false;
+
+export function getProfile(): Profile {
+  if (!profileLoaded) {
+    profile = readProfile();
+    profileLoaded = true;
+  }
+  return profile;
+}
+
+/** Switches the active local save slot. Does not touch any save data. */
+export function setProfile(p: Profile) {
+  profile = p.id === 'guest' ? GUEST : { id: p.id, uid: p.uid, username: p.username };
+  profileLoaded = true;
+  lastBackupAt = 0;
+  const ls = storage();
+  try {
+    if (profile.id === 'guest') ls?.removeItem(KEY_PROFILE);
+    else ls?.setItem(KEY_PROFILE, JSON.stringify(profile));
+  } catch {
+    /* ignore */
+  }
+}
+
+function slotKey(base: string, id = getProfile().id) {
+  return id === 'guest' ? base : `${base}@${id}`;
+}
+
+/** Per-account sync bookkeeping (cloud revision the local copy is based on). */
+export interface SyncMeta {
+  baseRev: number;
+  dirty: boolean;
+  lastSyncAt: number;
+}
+
+export function getSyncMeta(id: string): SyncMeta | null {
+  const v = readJSON(slotKey(KEY_SYNC, id)) as SyncMeta | null;
+  return v && typeof v.baseRev === 'number' ? v : null;
+}
+
+export function setSyncMeta(id: string, meta: SyncMeta) {
+  try {
+    storage()?.setItem(slotKey(KEY_SYNC, id), JSON.stringify(meta));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Reads the main save of any slot (e.g. the guest save while logged in). */
+export function readSaveOf(id: string): GameState | null {
+  const v = readJSON(slotKey(KEY_SAVE, id));
+  return isValidSave(v) ? normalizeState(v) : null;
+}
 
 const BACKUP_INTERVAL = 10 * 60 * 1000;
 let lastBackupAt = 0;
@@ -50,9 +123,9 @@ export interface LoadResult {
 }
 
 export function loadSave(): LoadResult {
-  const main = readJSON(KEY_SAVE);
+  const main = readJSON(slotKey(KEY_SAVE));
   if (isValidSave(main)) return { state: normalizeState(main), source: 'save' };
-  const backup = readJSON(KEY_BACKUP);
+  const backup = readJSON(slotKey(KEY_BACKUP));
   if (isValidSave(backup)) return { state: normalizeState(backup), source: 'backup', note: '메인 세이브를 읽지 못해 백업에서 복구했습니다.' };
   return { state: null, source: null };
 }
@@ -64,17 +137,17 @@ export function writeSave(state: GameState, force = false): boolean {
   const data = JSON.stringify({ ...state, savedAt: now });
   try {
     if (force || now - lastBackupAt > BACKUP_INTERVAL) {
-      const prev = ls.getItem(KEY_SAVE);
-      if (prev) ls.setItem(KEY_BACKUP, prev);
+      const prev = ls.getItem(slotKey(KEY_SAVE));
+      if (prev) ls.setItem(slotKey(KEY_BACKUP), prev);
       lastBackupAt = now;
     }
-    ls.setItem(KEY_SAVE, data);
+    ls.setItem(slotKey(KEY_SAVE), data);
     return true;
   } catch {
     // quota exceeded → drop snapshots first, then retry once
     try {
-      ls.removeItem(KEY_SNAPSHOTS);
-      ls.setItem(KEY_SAVE, data);
+      ls.removeItem(slotKey(KEY_SNAPSHOTS));
+      ls.setItem(slotKey(KEY_SAVE), data);
       return true;
     } catch {
       return false;
@@ -90,7 +163,7 @@ export interface Snapshot {
 }
 
 export function getSnapshots(): Snapshot[] {
-  const v = readJSON(KEY_SNAPSHOTS);
+  const v = readJSON(slotKey(KEY_SNAPSHOTS));
   return Array.isArray(v) ? (v as Snapshot[]).filter((x) => x && isValidSave(x.data)) : [];
 }
 
@@ -100,14 +173,14 @@ export function addSnapshot(state: GameState, label: string) {
   try {
     const list = getSnapshots();
     list.unshift({ day: state.day.number, at: Date.now(), label, data: state });
-    ls.setItem(KEY_SNAPSHOTS, JSON.stringify(list.slice(0, 3)));
+    ls.setItem(slotKey(KEY_SNAPSHOTS), JSON.stringify(list.slice(0, 3)));
   } catch {
     /* ignore — snapshots are a convenience */
   }
 }
 
 export function getBackup(): GameState | null {
-  const b = readJSON(KEY_BACKUP);
+  const b = readJSON(slotKey(KEY_BACKUP));
   return isValidSave(b) ? normalizeState(b) : null;
 }
 
@@ -115,9 +188,9 @@ export function getBackup(): GameState | null {
 export function deleteSave() {
   const ls = storage();
   if (!ls) return;
-  const cur = ls.getItem(KEY_SAVE);
-  if (cur) ls.setItem(KEY_BACKUP, cur); // keep one last backup, just in case
-  ls.removeItem(KEY_SAVE);
+  const cur = ls.getItem(slotKey(KEY_SAVE));
+  if (cur) ls.setItem(slotKey(KEY_BACKUP), cur); // keep one last backup, just in case
+  ls.removeItem(slotKey(KEY_SAVE));
 }
 
 export function exportSave(state: GameState): string {
