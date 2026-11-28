@@ -33,7 +33,7 @@ function PetCard({ p, active, selected, onClick, onLock }: { p: PetEntry; active
       }}
       role="button"
       tabIndex={0}
-      title={`${PET_RARITY_INFO[p.rarity].ko} ${PETS[p.kind].name}${p.locked ? ' (잠김)' : ''} — 우클릭: 잠금`}
+      title={`${PET_RARITY_INFO[p.rarity].ko} ${PETS[p.kind].name} (${PETS[p.kind].title})${p.locked ? ' (잠김)' : ''} — 우클릭: 잠금`}
     >
       <PetIcon kind={p.kind} size={36} />
       <span className="pet-card-r">{PET_RARITY_INFO[p.rarity].en.slice(0, p.rarity === 'secret' ? 6 : 3)}</span>
@@ -129,7 +129,7 @@ export function Pets() {
               </div>
               <div className="grow col" style={{ gap: 2 }}>
                 <div className="big">
-                  <PetRarityText rarity={partner.rarity}>{PETS[partner.kind].name}</PetRarityText> <span className="tiny muted">{PETS[partner.kind].en} · {PETS[partner.kind].element}</span>
+                  <PetRarityText rarity={partner.rarity}>{PETS[partner.kind].name}</PetRarityText> <span className="tiny muted">{PETS[partner.kind].title}</span>
                 </div>
                 <div className="small">
                   <PetRarityText rarity={partner.rarity} /> 등급
@@ -155,7 +155,7 @@ export function Pets() {
                     <PetRarityText rarity={selPet.rarity}>
                       {PET_RARITY_INFO[selPet.rarity].ko} {PETS[selPet.kind].name}
                     </PetRarityText>{' '}
-                    <span className="tiny muted">{PETS[selPet.kind].element}의 정령{PETS[selPet.kind].secret ? ' (시크릿)' : ''}</span>
+                    <span className="tiny muted">{PETS[selPet.kind].title}</span>
                   </div>
                   <div className="tiny">{PETS[selPet.kind].desc}</div>
                 </div>
