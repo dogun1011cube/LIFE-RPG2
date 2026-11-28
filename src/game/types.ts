@@ -1,3 +1,5 @@
+import type { AtkType } from '../data/characters';
+
 // ─────────────────────────────────────────────────────────────
 // LIFE RPG — core type definitions
 // ─────────────────────────────────────────────────────────────
@@ -17,8 +19,19 @@ export const EQUIP_POSITIONS: EquipPosition[] = ['weapon', 'helmet', 'armor', 'g
 export type ItemCategory = 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'character';
 export type ShopTab = 'weapons' | 'armor' | 'accessories' | 'consumables' | 'special';
 
+export type WeaponKind =
+  | 'sword' | 'greatsword' | 'katana' | 'dagger' | 'axe' | 'spear' | 'hammer' | 'bow'
+  | 'fist' | 'scythe' | 'staff' | 'wand' | 'tome' | 'orb' | 'pen';
+
+/** Material of helmets / armor / gloves / boots — same-material pieces give set bonuses. */
+export type ArmorMaterial = 'cloth' | 'leather' | 'mail' | 'plate';
+/** Accessory kind — each grants a small fixed passive. */
+export type AccessoryKind = 'ring' | 'necklace' | 'charm' | 'earring' | 'bracelet' | 'relic';
+
 export type IconId =
   | 'sword' | 'staff' | 'book' | 'hammer' | 'scythe' | 'pen'
+  | 'greatsword' | 'katana' | 'dagger' | 'axe' | 'spear' | 'bow' | 'fist' | 'wand' | 'orb' | 'mace'
+  | 'hood' | 'wizhat' | 'plate' | 'vest' | 'gauntlet' | 'greaves' | 'earring' | 'bracelet' | 'compass' | 'calc'
   | 'helmet' | 'armor' | 'robe' | 'gloves' | 'boots'
   | 'ring' | 'amulet' | 'charm' | 'hourglass' | 'seal'
   | 'potion' | 'ether' | 'elixir' | 'scroll' | 'bomb' | 'flask'
@@ -38,6 +51,23 @@ export interface StatBlock {
   luk?: number;
   expBonus?: number; // % applied to study EXP
   goldBonus?: number; // % applied to all gold gains
+  // ── combat modifiers (weapons) ──
+  pierce?: number; // % of enemy DEF ignored
+  critDmg?: number; // % extra critical damage
+  lifesteal?: number; // % of direct damage healed
+  dmg?: number; // % all damage
+  physDmg?: number; // % damage of the physical attack type
+  magicDmg?: number; // % magic type
+  fireDmg?: number; // % fire type
+  poisonDmg?: number; // % poison type
+  holyDmg?: number; // % holy type
+  mpSave?: number; // % less MP for skills
+  // ── defensive modifiers (armor / accessories) ──
+  dodge?: number; // % extra chance to evade monster attacks
+  dmgReduce?: number; // % less damage taken
+  hpPct?: number; // % max HP
+  mpPct?: number; // % max MP
+  defPct?: number; // % DEF
 }
 
 export type ConsumableEffect =
@@ -57,6 +87,12 @@ export interface ItemDef {
   desc: string;
   category: ItemCategory;
   slot?: EquipSlot;
+  /** Weapon kind (weapons only) — grants a fixed kind passive. */
+  kind?: WeaponKind;
+  /** Armor material (helmet / armor / gloves / boots) — same-material pieces form a set. */
+  material?: ArmorMaterial;
+  /** Accessory kind — grants a fixed passive. */
+  accKind?: AccessoryKind;
   rarity: Rarity;
   /** Shop price (also the base value for selling / upgrading). */
   price: number;
@@ -244,6 +280,8 @@ export interface GameState {
   monsters: Record<string, MonsterRecord>;
   gacha: { pulls: number; pity: number; charPity: number; history: GachaRecord[] };
   stats: LifetimeStats;
+  /** Item ids ever obtained (codex). */
+  discovered: string[];
   rankSeen: RankId;
   /** Highest content unlock stage already announced. */
   stageSeen: RankId;
@@ -269,6 +307,13 @@ export interface DerivedStats {
   critDmg: number; // multiplier
   expBonus: number; // %
   goldBonus: number; // %
+  pierce: number; // fraction of enemy DEF ignored (0..0.6)
+  lifesteal: number; // % of direct damage healed
+  dmgPct: number; // % all damage
+  typeDmg: Record<AtkType, number>; // % damage per attack type
+  mpSave: number; // % skill MP reduction
+  dodge: number; // % extra evasion
+  dmgReduce: number; // % less damage taken
   base: Record<StatKey, number>;
   training: Record<StatKey, number>;
   gear: StatBlock;

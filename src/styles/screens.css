@@ -2561,3 +2561,151 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ═════════════ WEAPON KINDS / CODEX ═════════════ */
+.kind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: #dbe4ff;
+  background: #1a2150;
+  box-shadow: inset 0 0 0 1px var(--line2);
+  vertical-align: middle;
+}
+.kind-badge img {
+  width: 12px;
+  height: 12px;
+}
+.kind-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  background: rgba(255, 207, 74, 0.06);
+  box-shadow: inset 3px 0 0 var(--gold2);
+}
+.kind-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 2px solid var(--line);
+}
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  background: #0a0e26;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.kind-chip:hover {
+  box-shadow: inset 0 0 0 2px var(--line2);
+}
+.kind-chip.on {
+  color: #1a1c2c;
+  background: var(--gold);
+  box-shadow: inset 0 0 0 2px var(--gold2);
+}
+.kind-chip img {
+  width: 12px;
+  height: 12px;
+}
+.codex {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.codex-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+.codex-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 5px;
+  justify-items: center;
+}
+.slot.unknown {
+  opacity: 0.75;
+}
+.slot.unknown img {
+  filter: grayscale(1) brightness(0.45);
+}
+.slot .q {
+  position: absolute;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  text-shadow: 1px 1px 0 #000;
+}
+.codex-detail {
+  padding: 8px;
+  background: #0a0e26;
+  box-shadow: inset 0 0 0 2px var(--line2);
+}
+.combat-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.combat-mods b {
+  color: var(--text);
+}
+.codex-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.codex-tabs .tab {
+  padding: 4px 8px;
+}
+.set-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+}
+.set-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: #0a0e26;
+  box-shadow: inset 0 0 0 1px var(--line2);
+  color: var(--muted);
+}
+.set-chip.on {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--green2);
+}
+.set-chip.on b {
+  color: var(--green);
+  font-weight: 400;
+}
+.set-chip img {
+  width: 12px;
+  height: 12px;
+}

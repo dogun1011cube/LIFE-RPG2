@@ -3,9 +3,9 @@ import { CHESTS } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, clampVitals, GameError, gainExp, gainGold, gainStamina, isEquipped, removeEntry, sfx, spendGold, toast } from './core';
 import { deriveStats } from './progression';
-import { pick, randInt, uid as makeUid, weighted } from './rng';
-import { rollItemOfRarity } from './loot';
-import type { EquipPosition, GameState, InventoryEntry, Rarity } from './types';
+import { randInt, uid as makeUid, weighted } from './rng';
+import { pickBalanced, rollItemOfRarity } from './loot';
+import type { AccessoryKind, ArmorMaterial, EquipPosition, GameState, InventoryEntry, ItemDef, Rarity, WeaponKind } from './types';
 import { RARITIES } from './types';
 
 export const MAX_PLUS = 10;
@@ -239,10 +239,16 @@ export function synthCandidates(s: GameState, rarity?: Rarity): InventoryEntry[]
   });
 }
 
-export function synthResultPool(target: Rarity, slot?: string) {
+/** Item family used by synthesis: weapon kind, armor material or accessory kind. */
+export type SynthFamily = Partial<Pick<ItemDef, 'kind' | 'material' | 'accKind'>>;
+
+export function synthResultPool(target: Rarity, slot?: string, family?: SynthFamily | WeaponKind) {
+  const fam: SynthFamily = typeof family === 'string' ? { kind: family } : family || {};
   const base = ITEMS.filter((i) => i.category === 'equipment' && i.rarity === target && i.gacha && !i.unique);
   if (slot) {
     const same = base.filter((i) => i.slot === slot);
+    const sameFam = same.filter((i) => (fam.kind && i.kind === fam.kind) || (fam.material && i.material === fam.material) || (fam.accKind && i.accKind === fam.accKind));
+    if (sameFam.length) return sameFam;
     if (same.length) return same;
   }
   return base;
@@ -255,6 +261,12 @@ export interface SynthCheck {
   target?: Rarity;
   cost?: number;
   slot?: string;
+  /** All three materials are weapons of this kind → the result keeps the kind (if one exists). */
+  kind?: WeaponKind;
+  /** Same slot + same armor material → the result keeps the material. */
+  material?: ArmorMaterial;
+  /** Accessories of the same kind → the result keeps the kind. */
+  accKind?: AccessoryKind;
 }
 
 export function checkSynthesis(s: GameState, uids: string[]): SynthCheck {
@@ -270,7 +282,8 @@ export function checkSynthesis(s: GameState, uids: string[]): SynthCheck {
   const target = nextRarity(rarity);
   if (!target) return { ok: false, reason: '신화 등급은 더 이상 합성할 수 없습니다.' };
   const slot = defs.every((d) => d.slot === defs[0].slot) ? defs[0].slot : undefined;
-  return { ok: true, rarity, target, cost: SYNTH_COST[rarity], slot };
+  const same = <K extends 'kind' | 'material' | 'accKind'>(k: K) => (slot && defs.every((d) => d[k] && d[k] === defs[0][k]) ? defs[0][k] : undefined);
+  return { ok: true, rarity, target, cost: SYNTH_COST[rarity], slot, kind: same('kind'), material: same('material'), accKind: same('accKind') };
 }
 
 export interface SynthResult {
@@ -285,12 +298,13 @@ export function synthesize(s: GameState, ctx: Ctx, uids: string[]): SynthResult 
   const chk = checkSynthesis(s, uids);
   if (!chk.ok) throw new GameError(chk.reason);
   spendGold(s, chk.cost!);
-  const item = pick(ctx.rng, synthResultPool(chk.target!, chk.slot));
+  const item = pickBalanced(ctx.rng, synthResultPool(chk.target!, chk.slot, { kind: chk.kind, material: chk.material, accKind: chk.accKind }));
   const great = ctx.rng() < SYNTH_GREAT_CHANCE;
   const plus = great ? randInt(ctx.rng, 1, 3) : 0;
   for (const u of uids) removeEntry(s, u, 1);
   const newUid = makeUid('i');
   s.inventory.push({ uid: newUid, itemId: item.id, qty: 1, plus, obtainedAt: ctx.now });
+  if (!s.discovered.includes(item.id)) s.discovered.push(item.id);
   s.stats.synthesized += 1;
   toast(ctx, 'item', great ? 'SYNTHESIS — 대성공!' : 'SYNTHESIS SUCCESS', `${item.name}${plus ? ' +' + plus : ''} (${RARITY_INFO[item.rarity].ko})`);
   sfx(ctx, great || RARITIES.indexOf(item.rarity) >= 4 ? 'gachaLegend' : 'gachaRare');

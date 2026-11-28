@@ -186,8 +186,9 @@ export function getCharacter(id: string | undefined): CharacterDef {
   return (id && CHARACTER_MAP[id]) || CHARACTER_MAP[STARTER_CHARACTER];
 }
 
-export function skillMp(maxMp: number, sk: CSkill) {
-  return Math.max(1, Math.ceil((maxMp * sk.mpPct) / 100));
+/** MP cost of a skill. `mpSave` (%) comes from equipment such as tomes. */
+export function skillMp(maxMp: number, sk: CSkill, mpSave = 0) {
+  return Math.max(1, Math.ceil(((maxMp * sk.mpPct) / 100) * (1 - Math.min(50, Math.max(0, mpSave)) / 100)));
 }
 
 // ── Monster affinities (약점 / 내성 / 면역) ────────────────────

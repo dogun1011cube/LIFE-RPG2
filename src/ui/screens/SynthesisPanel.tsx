@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { WEAPON_KINDS } from '../../data/weapons';
+import { ARMOR_MATERIALS } from '../../data/armor';
+import { ACC_KINDS } from '../../data/accessories';
 import { getItem, RARITY_INFO, SLOT_LABEL } from '../../data/items';
 import type { SynthResult } from '../../game/inventory';
 import { autoPickSynth, checkSynthesis, nextRarity, SYNTH_COST, SYNTH_COUNT, SYNTH_GREAT_CHANCE, synthCandidates, synthesize } from '../../game/inventory';
@@ -48,7 +51,7 @@ export function SynthesisPanel() {
   return (
     <div className="synth">
       <div className="small muted">
-        같은 등급 장비 <b>{SYNTH_COUNT}개</b>와 골드를 넣으면 <b>한 단계 높은 등급</b>의 장비가 무작위로 나와요. 세 재료의 부위가 모두 같으면 같은 부위가 나오고, {Math.round(SYNTH_GREAT_CHANCE * 100)}% 확률로 <span className="gold-t">대성공</span>(+1~+3 강화된 상태)!
+        같은 등급 장비 <b>{SYNTH_COUNT}개</b>와 골드를 넣으면 <b>한 단계 높은 등급</b>의 장비가 무작위로 나와요. 세 재료의 부위가 모두 같으면 같은 부위가, 같은 계열 무기·같은 소재 방어구·같은 종류 장신구 3개면 그 계열/소재/종류가 유지되고, {Math.round(SYNTH_GREAT_CHANCE * 100)}% 확률로 <span className="gold-t">대성공</span>(+1~+3 강화된 상태)!
       </div>
       <div className="tabs" style={{ marginTop: 8 }}>
         {RARITIES.filter((r) => r !== 'mythic').map((r) => (
@@ -88,7 +91,7 @@ export function SynthesisPanel() {
           <span className="tiny">
             <RarityText rarity={target}>{RARITY_INFO[target].ko}</RarityText>
           </span>
-          <span className="tiny dim">{slotHint ? SLOT_LABEL[slotHint] : '무작위 부위'}</span>
+          <span className="tiny dim">{chosen.length === SYNTH_COUNT && chk.kind ? WEAPON_KINDS[chk.kind].ko : chosen.length === SYNTH_COUNT && chk.material && slotHint ? `${ARMOR_MATERIALS[chk.material].ko} ${SLOT_LABEL[slotHint]}` : chosen.length === SYNTH_COUNT && chk.accKind ? ACC_KINDS[chk.accKind].ko : slotHint ? SLOT_LABEL[slotHint] : '무작위 부위'}</span>
         </div>
       </div>
 

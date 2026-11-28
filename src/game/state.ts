@@ -90,6 +90,7 @@ export function createNewGame(name: string, now = Date.now()): GameState {
     monsters: {},
     gacha: { pulls: 0, pity: 0, charPity: 0, history: [] },
     stats: defaultStats(),
+    discovered: starter.map((e) => e.itemId),
     rankSeen: 'F',
     stageSeen: 'F',
     timer: null,
@@ -131,6 +132,11 @@ export function normalizeState(raw: unknown): GameState {
   if (!Array.isArray(s.ownedCharacters)) s.ownedCharacters = [STARTER_CHARACTER];
   if (!s.ownedCharacters.includes(STARTER_CHARACTER)) s.ownedCharacters.unshift(STARTER_CHARACTER);
   if (!s.ownedCharacters.includes(s.player.activeCharacter)) s.player.activeCharacter = STARTER_CHARACTER;
+  // codex: saves made before it existed start with everything they currently hold / have pulled
+  if (!isObj(raw) || !Array.isArray(raw.discovered)) {
+    const ids = [...s.inventory.map((e) => e.itemId), ...(s.ownedCosmetics || []), ...((s.gacha?.history || []).map((h) => h.itemId))];
+    s.discovered = Array.from(new Set(ids.filter((x) => typeof x === 'string')));
+  }
   // Equipment slots are nullable; if the slot object came from defaults for an old save,
   // don't auto-equip starter items that the inventory doesn't contain.
   for (const pos of Object.keys(s.player.equipment) as (keyof typeof s.player.equipment)[]) {

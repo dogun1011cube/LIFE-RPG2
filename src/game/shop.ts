@@ -3,7 +3,7 @@ import { rankAtLeast, stageReqText } from '../data/ranks';
 import { GACHA } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, GameError, sfx, spendGold, toast } from './core';
-import { rollItemOfRarity } from './loot';
+import { pickBalanced, rollItemOfRarity } from './loot';
 import { unlockStage } from './progression';
 import { hashStr, pick, seeded, weighted } from './rng';
 import type { GameState, GachaRecord, ItemDef, Rarity, ShopTab } from './types';
@@ -24,7 +24,7 @@ export function dailyDeal(s: GameState): ItemDef {
   const rank = unlockStage(s);
   const pool = ITEMS.filter((i) => i.shop && i.shop !== 'special' && i.category === 'equipment' && rankAtLeast(rank, i.minRank));
   const rng = seeded(hashStr('deal' + s.day.number));
-  return pick(rng, pool.length ? pool : ITEMS.filter((i) => i.shop === 'consumables'));
+  return pool.length ? pickBalanced(rng, pool) : pick(rng, ITEMS.filter((i) => i.shop === 'consumables'));
 }
 
 export function dealPrice(def: ItemDef) {

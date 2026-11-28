@@ -104,7 +104,7 @@ export function CharacterDetail({ state }: { state: GameState }) {
             <b>{sk.name}</b>
             <span className="tiny muted grow">{sk.desc}</span>
             <span className="tiny blue-t">
-              MP {skillMp(d.maxMp, sk)} · 쿨 {sk.cd}
+              MP {skillMp(d.maxMp, sk, d.mpSave)} · 쿨 {sk.cd}
             </span>
           </div>
         ))}

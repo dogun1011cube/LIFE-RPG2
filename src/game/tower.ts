@@ -6,6 +6,7 @@ import { QUIZ, SLOT_SYMBOLS, SLOT_WEIGHTS } from '../data/world';
 import type { Ctx } from './core';
 import { addItem, GameError, gainExp, gainGold, sfx, toast } from './core';
 import { deriveStats, unlockStage } from './progression';
+import { pickBalanced } from './loot';
 import { hashStr, pick, seeded, weighted } from './rng';
 import type { GameState, ItemDef, RankId } from './types';
 
@@ -301,7 +302,7 @@ export function resolveEvent(s: GameState, ctx: Ctx, f: number, optionId: string
       s.stats.goldSpent += cost;
       s.day.goldSpent += cost;
       const pool = ITEMS.filter((i) => i.rarity === 'rare' && i.loot);
-      const it = pick(ctx.rng, pool);
+      const it = pickBalanced(ctx.rng, pool);
       addItem(s, it.id, 1, ctx, false);
       text = `${cost} G를 바치자 ${it.name}이(가) 나타났다!`;
       break;
@@ -364,8 +365,8 @@ export function merchantStock(f: number): { item: ItemDef; price: number }[] {
   add(pick(rng, consumables));
   add(pick(rng, consumables));
   if (gear.length) {
-    add(pick(rng, gear));
-    add(pick(rng, gear));
+    add(pickBalanced(rng, gear));
+    add(pickBalanced(rng, gear));
   }
   return picks.map((item) => ({ item, price: Math.max(1, Math.floor(item.price * (1 - MERCHANT_DISCOUNT))) }));
 }

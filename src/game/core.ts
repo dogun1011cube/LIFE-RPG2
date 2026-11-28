@@ -110,6 +110,8 @@ export function isStackable(itemId: string) {
  */
 export function addItem(s: GameState, itemId: string, qty = 1, ctx?: Ctx, notify = true): { label: string; converted?: number } {
   const def = getItem(itemId);
+  if (!Array.isArray(s.discovered)) s.discovered = [];
+  if (!s.discovered.includes(itemId)) s.discovered.push(itemId);
   if (def.category === 'character' && def.character) {
     if (s.ownedCharacters.includes(def.character)) {
       const refund = Math.round(RARITY_INFO[def.rarity].value * 0.5);
