@@ -5,6 +5,7 @@ import { STUDY_SECONDS_PER_TRAINING_POINT } from '../data/subjects';
 import { weaponPassive } from '../data/weapons';
 import { armorSetBonuses } from '../data/armor';
 import { accessoryPassive } from '../data/accessories';
+import { petPassive } from '../data/pets';
 import type { ItemDef } from './types';
 import type { DerivedStats, GameState, RankId, StatBlock, StatKey } from './types';
 import { EQUIP_POSITIONS, STAT_KEYS } from './types';
@@ -114,6 +115,9 @@ export function gearStats(state: GameState): StatBlock {
   }
   // armor material set bonuses (2 / 4 pieces)
   for (const set of armorSetBonuses(defs)) for (const b of set.active) addBlock(total, b);
+  // the active pet's passive
+  const pet = state.pets?.find((p) => p.uid === state.player.activePet);
+  if (pet) addBlock(total, petPassive(pet.kind, pet.rarity));
   return total;
 }
 

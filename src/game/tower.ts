@@ -183,6 +183,46 @@ export function isCleared(s: GameState, f: number) {
   return f <= s.tower.highestCleared;
 }
 
+/**
+ * What "continue climbing" does after finishing floor `from`:
+ *   battle   — start floor `floor` right away (opening the unopened treasure floor `treasure` first, if any)
+ *   visit    — the next floor needs the tower screen (event / merchant choices, the 13F seal quiz)
+ *   locked   — the next floor is sealed (unlock stage) or not reachable
+ * Already-cleared treasure / event / merchant floors are skipped.
+ */
+export interface TowerNext {
+  kind: 'battle' | 'visit' | 'locked';
+  floor: number;
+  /** Unopened treasure floor opened on the way. */
+  treasure?: number;
+  /** Stamina the whole step costs (treasure + battle). */
+  stamina: number;
+  reason?: string;
+}
+
+export function towerNextStep(s: GameState, from: number): TowerNext {
+  let virtualHighest = Math.max(s.tower.highestCleared, from);
+  let treasure: number | undefined;
+  let stamina = 0;
+  for (let f = from + 1; f <= from + 12; f++) {
+    const seal = sealRankFor(f);
+    if (f > virtualHighest + 1) return { kind: 'locked', floor: f, stamina: 0, reason: '아래층을 먼저 돌파하세요.' };
+    if (seal && !rankAtLeast(unlockStage(s), seal)) return { kind: 'locked', floor: f, stamina: 0, reason: `봉인됨 — ${stageReqText(seal)} 달성 시 해제` };
+    const info = floorInfo(f);
+    if (info.waves.length && info.special !== 13) return { kind: 'battle', floor: f, treasure, stamina: stamina + info.stamina };
+    const cleared = f <= s.tower.highestCleared;
+    if (info.type === 'treasure' && !cleared && treasure === undefined) {
+      treasure = f;
+      stamina += info.stamina;
+      virtualHighest = Math.max(virtualHighest, f);
+      continue;
+    }
+    if (cleared && (info.type === 'treasure' || info.type === 'event' || info.type === 'merchant')) continue;
+    return { kind: 'visit', floor: treasure ?? f, stamina: 0 };
+  }
+  return { kind: 'visit', floor: from + 1, stamina: 0 };
+}
+
 /** Grants first-clear rewards & advances progress. Returns reward summary lines. */
 export function clearFloor(s: GameState, ctx: Ctx, f: number): string[] {
   const lines: string[] = [];

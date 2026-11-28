@@ -69,27 +69,19 @@ export function unownedCharacterItems(s: GameState): ItemDef[] {
 
 /** One gacha roll (pity, history, item grant). Does not charge gold. */
 function rollOnce(s: GameState, ctx: Ctx, forceRare: boolean): GachaResult {
-  let item: ItemDef | null = null;
+  // (characters have their own banner now — see game/pets.ts charGachaPull)
   let pity = false;
-  // character summon: independent small chance, with its own hard pity
-  const unowned = unownedCharacterItems(s);
-  if (unowned.length && (s.gacha.charPity + 1 >= GACHA.charPity || ctx.rng() * 100 < GACHA.charRate)) {
-    item = pick(ctx.rng, unowned);
-    s.gacha.charPity = 0;
-  } else {
-    if (unowned.length) s.gacha.charPity += 1;
-    let rarity = rollRarity(ctx);
-    if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
-      rarity = 'legendary';
-      pity = true;
-    }
-    if (forceRare && RARITIES.indexOf(rarity) < 2) rarity = 'rare';
-    item = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
+  let rarity = rollRarity(ctx);
+  if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
+    rarity = 'legendary';
+    pity = true;
   }
+  if (forceRare && RARITIES.indexOf(rarity) < 2) rarity = 'rare';
+  const item: ItemDef = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
   if (RARITIES.indexOf(item.rarity) >= RARITIES.indexOf('legendary')) s.gacha.pity = 0;
   else s.gacha.pity += 1;
   const res = addItem(s, item.id, 1, ctx, false);
-  const rec: GachaRecord = { at: ctx.now, itemId: item.id, rarity: item.rarity, converted: res.converted };
+  const rec: GachaRecord = { at: ctx.now, itemId: item.id, rarity: item.rarity, converted: res.converted, banner: 'equip' };
   s.gacha.history.unshift(rec);
   return { itemId: item.id, rarity: item.rarity, converted: res.converted, pity };
 }
@@ -146,7 +138,7 @@ export function autoGacha(s: GameState, ctx: Ctx, opts: AutoGachaOptions): AutoG
     spent += GACHA.auto;
     const r = rollOnce(s, ctx, false);
     results.push(r);
-    if (RARITIES.indexOf(r.rarity) >= target || getItem(r.itemId).category === 'character') {
+    if (RARITIES.indexOf(r.rarity) >= target) {
       stopReason = 'target';
       break;
     }

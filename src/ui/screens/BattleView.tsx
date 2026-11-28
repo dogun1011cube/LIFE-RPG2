@@ -7,9 +7,10 @@ import type { BattleEvent, BattleSetup, BattleState, PlayerAction } from '../../
 import { activeSkills, createBattle, resolveTurn, skillState } from '../../game/battle';
 import { removeEntry } from '../../game/core';
 import type { BattleResult } from '../../game/encounters';
-import { finishBattle, startFieldBattle, startTowerBattle } from '../../game/encounters';
+import { continueTower, finishBattle, startFieldBattle, startTowerBattle } from '../../game/encounters';
 import { deriveStats } from '../../game/progression';
-import { floorAccess } from '../../game/tower';
+import { towerNextStep } from '../../game/tower';
+import { PETS } from '../../data/pets';
 import { BattleScene, MELEE_FX } from '../../render/BattleScene';
 import { act, getState, useGame } from '../../store/store';
 import { Bar, Btn, ItemIcon, PixelIcon, RarityText } from '../components';
@@ -32,7 +33,8 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
   const battleRef = useRef<BattleState | null>(null);
   const [battle, setBattle] = useState<BattleState>(() => {
     const st = getState();
-    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold, st.player.activeCharacter);
+    const pet = st.pets?.find((x) => x.uid === st.player.activePet) ?? null;
+    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold, st.player.activeCharacter, pet);
     battleRef.current = b;
     return b;
   });
@@ -67,6 +69,10 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
     scene.speed = speed;
     scene.setBackground(setup.bg);
     scene.setHero(heroSprite(st), heroPalette(st), heroAura(st));
+    {
+      const pet = st.pets?.find((x) => x.uid === st.player.activePet);
+      scene.setPet(pet ? pet.kind : null, pet?.rarity === 'secret');
+    }
     scene.setMonster(battle.monster, true);
     playSfx('door');
     const first = battle.monster;
@@ -115,6 +121,14 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
         await scene.play(ev);
         return;
       }
+      case 'petAct':
+        later(140, () => {
+          playSfx(ev.hitIndex ? 'hit' : 'magic');
+          setMHp(ev.mHp);
+        });
+        pushLog(`${PETS[ev.kind].name}: ${ev.dmg} 피해!${ev.aff === 'weak' ? ' (약점!)' : ''}`, 'good');
+        await scene.play(ev);
+        return;
       case 'mDot':
         playSfx('hit');
         setMHp(ev.mHp);
@@ -274,10 +288,16 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
     const r = act((d, c) => (setup.kind === 'tower' && setup.floor ? startTowerBattle(d, c, setup.floor) : startFieldBattle(d, c, setup.locationId)));
     if (r.ok) setUI({ battle: { ...r.value } });
   };
-  const nextFloor = () => {
-    const f = (setup.floor || 0) + 1;
+  const goFloor = (f: number) => {
     setUI({ battle: null, towerFocus: f });
     go('tower');
+  };
+  // continue climbing straight from the result screen
+  const towerNext = setup.kind === 'tower' && result?.outcome === 'victory' ? towerNextStep(s, setup.floor || 0) : null;
+  const climbBlock = towerNext?.kind === 'battle' ? (s.day.status !== 'active' ? '잠든 상태에서는 전투할 수 없어요.' : s.player.stamina < towerNext.stamina ? `기력 부족 (필요 ${towerNext.stamina} · 보유 ${s.player.stamina})` : null) : null;
+  const climb = () => {
+    const r = act((d, c) => continueTower(d, c, setup.floor || 0));
+    if (r.ok) setUI({ battle: { ...r.value } });
   };
 
   const def = getMonster(mon.defId);
@@ -491,12 +511,30 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
               </div>
             ))}
             {result.outcome === 'defeat' && <div className="small muted">공부해서 레벨을 올리거나, 장비를 강화하고 다시 도전하세요!</div>}
+            {towerNext && (
+              <div className="climb-info tiny">
+                {towerNext.kind === 'battle' && (
+                  <>
+                    HP <b className={s.player.hp < deriveStats(s).maxHp * 0.35 ? 'red-t' : ''}>{s.player.hp}</b>/{deriveStats(s).maxHp} · MP {s.player.mp}/{deriveStats(s).maxMp} · 기력 <b className={climbBlock ? 'red-t' : ''}>{s.player.stamina}</b> (다음 층 {towerNext.stamina})
+                    {climbBlock && <div className="red-t">{climbBlock}</div>}
+                    {!climbBlock && <div className="dim">HP·MP는 그대로 이어집니다. Enter = 바로 도전</div>}
+                  </>
+                )}
+                {towerNext.kind === 'visit' && <span className="dim">{towerNext.floor}층은 선택이 필요한 층이라 탑 화면에서 진행해요.</span>}
+                {towerNext.kind === 'locked' && <span className="dim">다음 층: {towerNext.reason}</span>}
+              </div>
+            )}
             <div className="modal-actions" style={{ justifyContent: 'center' }}>
-              {setup.kind === 'tower' && result.outcome === 'victory' && result.firstClear && floorAccess(getState(), (setup.floor || 0) + 1).ok ? (
-                <Btn variant="purple" onClick={nextFloor} sfx="stairs">
-                  다음 층 도전 ({(setup.floor || 0) + 1}F) ▶
+              {towerNext?.kind === 'battle' && (
+                <Btn variant="purple" onClick={climb} sfx="stairs" disabled={!!climbBlock} autoFocus={!climbBlock}>
+                  {towerNext.treasure ? `${towerNext.treasure}F 보물 열고 ${towerNext.floor}F 도전 ▶` : `다음 층 바로 도전 (${towerNext.floor}F) ▶`}
                 </Btn>
-              ) : null}
+              )}
+              {towerNext?.kind === 'visit' && (
+                <Btn variant="purple" onClick={() => goFloor(towerNext.floor)} sfx="stairs">
+                  {towerNext.floor}F로 이동 ▶
+                </Btn>
+              )}
               {(setup.kind === 'field' || setup.kind === 'arena') && s.player.stamina >= setup.staminaSpent && s.day.status === 'active' && (
                 <Btn variant="red" onClick={again}>
                   다시 싸우기 (기력 {setup.staminaSpent})
@@ -507,8 +545,8 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
                   다시 훈련
                 </Btn>
               )}
-              <Btn variant="gold" onClick={close} sfx="confirm" autoFocus>
-                {result.outcome === 'defeat' ? '마을로 돌아가기' : '계속'}
+              <Btn variant="gold" onClick={close} sfx="confirm" autoFocus={!(towerNext?.kind === 'battle' && !climbBlock)}>
+                {result.outcome === 'defeat' ? '마을로 돌아가기' : setup.kind === 'tower' ? '탑으로 나가기' : '계속'}
               </Btn>
             </div>
           </div>

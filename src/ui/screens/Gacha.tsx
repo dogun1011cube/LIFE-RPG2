@@ -7,7 +7,8 @@ import { autoGacha, autoGachaMaxCost, gachaPull } from '../../game/shop';
 import type { Rarity } from '../../game/types';
 import { RARITIES } from '../../game/types';
 import { act, useGame } from '../../store/store';
-import { Btn, ItemIcon, RarityText, Win } from '../components';
+import { Btn, ItemIcon, PixelIcon, RarityText, Win } from '../components';
+import { CharBanner, PetBanner } from './GachaBanners';
 import { confirmDialog } from '../uiStore';
 
 const AUTO_TARGETS: Rarity[] = ['rare', 'epic', 'legendary', 'mythic'];
@@ -19,7 +20,8 @@ const STOP_TEXT: Record<AutoGachaResult['stopReason'], string> = {
 
 type Phase = 'idle' | 'charge' | 'reveal';
 
-export function Gacha() {
+/** Equipment banner (장비 소환): gear, consumables and cosmetics. */
+function EquipBanner() {
   const s = useGame();
   const [phase, setPhase] = useState<Phase>('idle');
   const [results, setResults] = useState<GachaResult[]>([]);
@@ -81,6 +83,7 @@ export function Gacha() {
   }, [phase, flipped, results, auto]);
 
   const done = phase === 'reveal' && flipped >= results.length;
+  const equipHistory = s.gacha.history.filter((h) => (h.banner ?? 'equip') === 'equip' && !h.itemId.startsWith('pet:') && getItem(h.itemId).category !== 'character');
 
   return (
     <div className="gacha">
@@ -221,7 +224,7 @@ export function Gacha() {
             확률표
           </button>
           <button className={`tab ${tab === 'history' ? 'on' : ''}`} onClick={() => setTab('history')}>
-            소환 기록 {s.gacha.history.length}
+            소환 기록 {equipHistory.length}
           </button>
         </div>
         {tab === 'rates' ? (
@@ -241,15 +244,15 @@ export function Gacha() {
               · {GACHA.pity}회 연속으로 전설 이상이 나오지 않으면 다음 소환은 전설 확정.
               <br />· 10회 소환은 희귀 이상 1개 이상 확정.
               <br />· 같은 외형(칭호·망토·오라)이 중복되면 등급 가치의 50%를 골드로 돌려받습니다.
-              <br />· 자동 소환은 1회 {GACHA.auto} G이며 확률·천장은 동일합니다 (10회 확정 보장은 없음). 새 캐릭터가 나오면 자동 소환도 멈춰요.
-              <br />· <b>캐릭터 소환</b>: 위 확률과 별개로 매 소환마다 {GACHA.charRate}% 확률로 아직 없는 캐릭터가 나옵니다. {GACHA.charPity}회 동안 못 만나면 다음 소환은 캐릭터 확정 (현재 {s.gacha.charPity}/{GACHA.charPity}). 이미 가진 캐릭터는 다시 나오지 않아요.
+              <br />· 자동 소환은 1회 {GACHA.auto} G이며 확률·천장은 동일합니다 (10회 확정 보장은 없음).
+              <br />· 캐릭터는 <b>캐릭터 소환</b>, 펫은 <b>펫 소환</b> 탭에서 따로 소환해요.
               <br />· 소환은 언제나 보상을 줍니다. 꽝은 없습니다.
             </div>
           </div>
         ) : (
           <div className="gacha-history">
-            {s.gacha.history.length === 0 && <div className="empty-state">아직 소환 기록이 없습니다.</div>}
-            {s.gacha.history.slice(0, 60).map((h, i) => (
+            {equipHistory.length === 0 && <div className="empty-state">아직 소환 기록이 없습니다.</div>}
+            {equipHistory.slice(0, 60).map((h, i) => (
               <div key={i} className="row small">
                 <ItemIcon item={h.itemId} size={20} />
                 <RarityText rarity={h.rarity}>{getItem(h.itemId).name}</RarityText>
@@ -261,6 +264,48 @@ export function Gacha() {
           </div>
         )}
       </Win>
+    </div>
+  );
+}
+
+type Banner = 'equip' | 'char' | 'pet';
+const BANNERS: { id: Banner; label: string; sub: string; icon: string; tint: string }[] = [
+  { id: 'equip', label: '장비 소환', sub: '장비 · 소모품 · 외형', icon: 'sword', tint: '#ffd43b' },
+  { id: 'char', label: '캐릭터 소환', sub: '새 캐릭터', icon: 'person', tint: '#74c0fc' },
+  { id: 'pet', label: '펫 소환', sub: '정령 펫', icon: 'pet_undine', tint: '#4dabf7' },
+];
+
+/** Summoning altar with three separate banners. */
+export function Gacha() {
+  const [banner, setBanner] = useState<Banner>(() => {
+    try {
+      return (sessionStorage.getItem('lifeRPG3.banner') as Banner) || 'equip';
+    } catch {
+      return 'equip';
+    }
+  });
+  const pickBanner = (b: Banner) => {
+    setBanner(b);
+    try {
+      sessionStorage.setItem('lifeRPG3.banner', b);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div className="gacha-wrap">
+      <div className="banner-tabs">
+        {BANNERS.map((b) => (
+          <button key={b.id} className={`banner-tab ${banner === b.id ? 'on' : ''}`} onClick={() => pickBanner(b.id)}>
+            <PixelIcon icon={b.icon} tint={b.tint} size={22} />
+            <span>
+              <b>{b.label}</b>
+              <span className="tiny muted"> {b.sub}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {banner === 'equip' ? <EquipBanner /> : banner === 'char' ? <CharBanner /> : <PetBanner />}
     </div>
   );
 }

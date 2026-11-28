@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { BattleSetup } from '../game/battle';
 import type { DaySummary } from '../game/types';
 
-export type Screen = 'home' | 'study' | 'status' | 'battle' | 'tower' | 'shop' | 'gacha' | 'inventory' | 'quests' | 'settings';
+export type Screen = 'home' | 'study' | 'status' | 'battle' | 'tower' | 'shop' | 'gacha' | 'pets' | 'inventory' | 'quests' | 'settings';
 
 export interface ConfirmReq {
   title: string;

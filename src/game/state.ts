@@ -27,6 +27,7 @@ export function defaultStats(): LifetimeStats {
     daysCompleted: 0,
     synthesized: 0,
     autoGachaRuns: 0,
+    petMerges: 0,
   };
 }
 
@@ -63,6 +64,7 @@ export function createNewGame(name: string, now = Date.now()): GameState {
       equipment: { weapon: 'start_w', helmet: null, armor: 'start_a', gloves: null, boots: null, acc1: null, acc2: null },
       cosmetics: { title: null, cape: null, aura: null },
       activeCharacter: STARTER_CHARACTER,
+      activePet: null,
       studyBuff: { expPct: 0, goldPct: 0 },
     },
     inventory: starter,
@@ -88,7 +90,8 @@ export function createNewGame(name: string, now = Date.now()): GameState {
     tower: { highestCleared: 0, currentFloor: 1, flags: {}, runs: 0 },
     quests: { dailyClaimed: [], achievementsClaimed: [], notified: [] },
     monsters: {},
-    gacha: { pulls: 0, pity: 0, charPity: 0, history: [] },
+    gacha: { pulls: 0, pity: 0, charPity: 0, charPulls: 0, petPulls: 0, petPity: 0, history: [] },
+    pets: [],
     stats: defaultStats(),
     discovered: starter.map((e) => e.itemId),
     rankSeen: 'F',
@@ -132,6 +135,9 @@ export function normalizeState(raw: unknown): GameState {
   if (!Array.isArray(s.ownedCharacters)) s.ownedCharacters = [STARTER_CHARACTER];
   if (!s.ownedCharacters.includes(STARTER_CHARACTER)) s.ownedCharacters.unshift(STARTER_CHARACTER);
   if (!s.ownedCharacters.includes(s.player.activeCharacter)) s.player.activeCharacter = STARTER_CHARACTER;
+  // pets: the active pet must exist
+  if (!Array.isArray(s.pets)) s.pets = [];
+  if (s.player.activePet && !s.pets.some((p) => p.uid === s.player.activePet)) s.player.activePet = null;
   // codex: saves made before it existed start with everything they currently hold / have pulled
   if (!isObj(raw) || !Array.isArray(raw.discovered)) {
     const ids = [...s.inventory.map((e) => e.itemId), ...(s.ownedCosmetics || []), ...((s.gacha?.history || []).map((h) => h.itemId))];
