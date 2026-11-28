@@ -1,30 +1,19 @@
 import { useState } from 'react';
 import { getItem, RARITY_INFO, SHOP_TABS, SLOT_LABEL } from '../../data/items';
 import { stageReqText } from '../../data/ranks';
+import { WEAPON_KINDS } from '../../data/weapons';
 import { scaledStats } from '../../game/progression';
 import { isEquipped } from '../../game/core';
 import type { SellScope } from '../../game/inventory';
 import { sellAll, sellAllPreview, sellItem, sellPrice, toggleLock } from '../../game/inventory';
 import { buyItem, canBuy, dailyDeal, dealBought, dealPrice, shopItems } from '../../game/shop';
-import type { GameState, ItemDef, ShopTab, StatBlock } from '../../game/types';
+import type { GameState, ItemDef, ShopTab, StatBlock, WeaponKind } from '../../game/types';
 import { act, useGame } from '../../store/store';
 import { Btn, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win } from '../components';
 import { confirmDialog } from '../uiStore';
+import { KindBadge, KindFilter, STAT_NAMES, WeaponKindLine } from '../WeaponInfo';
 
-export const STAT_NAMES: Record<keyof StatBlock, string> = {
-  atk: 'ATK',
-  def: 'DEF',
-  matk: 'MATK',
-  hp: 'HP',
-  mp: 'MP',
-  crit: 'CRIT%',
-  str: 'STR',
-  int: 'INT',
-  dex: 'DEX',
-  luk: 'LUK',
-  expBonus: '공부 EXP%',
-  goldBonus: '골드%',
-};
+export { STAT_NAMES };
 
 export function equippedFor(s: GameState, def: ItemDef): StatBlock {
   if (!def.slot) return {};
@@ -62,6 +51,7 @@ export function Shop() {
   const [qty, setQty] = useState(1);
   const [confirm, setConfirm] = useState<{ def: ItemDef; qty: number; price: number; deal?: boolean } | null>(null);
   const [scope, setScope] = useState<SellScope>('equipment');
+  const [kind, setKind] = useState<WeaponKind | 'all'>('all');
 
   const doSellAll = async () => {
     const p = sellAllPreview(s, scope);
@@ -80,7 +70,14 @@ export function Shop() {
   const deal = dailyDeal(s);
   const bought = dealBought(s);
 
-  const list = tab === 'sell' ? [] : shopItems(tab);
+  const list =
+    tab === 'sell'
+      ? []
+      : tab === 'weapons'
+        ? shopItems(tab)
+            .filter((it) => kind === 'all' || it.kind === kind)
+            .sort((a, b) => (a.level || 0) - (b.level || 0) || a.price - b.price)
+        : shopItems(tab);
   const selDef = sel ? getItem(sel) : list[0] || null;
   const stackable = selDef ? selDef.category !== 'equipment' : false;
 
@@ -152,6 +149,16 @@ export function Shop() {
       {tab !== 'sell' ? (
         <div className="shop-body">
           <Win className="shop-list">
+            {tab === 'weapons' && (
+              <KindFilter
+                value={kind}
+                onChange={(k) => {
+                  setKind(k);
+                  setSel(null);
+                }}
+              />
+            )}
+            {list.length === 0 && <div className="empty-state">이 계열은 상점에서 팔지 않아요. 몬스터 드롭·소환·합성으로 얻을 수 있습니다.</div>}
             {list.map((it) => {
               const ok = canBuy(s, it);
               return (
@@ -168,7 +175,7 @@ export function Shop() {
                     <RarityText rarity={it.rarity}>{it.name}</RarityText>
                     <span className="tiny dim">
                       {' '}
-                      {it.slot ? SLOT_LABEL[it.slot] : RARITY_INFO[it.rarity].ko}
+                      {it.kind ? <KindBadge kind={it.kind} /> : it.slot ? SLOT_LABEL[it.slot] : RARITY_INFO[it.rarity].ko}
                       {it.level ? ` · 권장 Lv ${it.level}` : ''}
                     </span>
                   </span>
@@ -194,11 +201,12 @@ export function Shop() {
                     </div>
                     <div className="tiny muted">
                       {selDef.nameEn} · <RarityText rarity={selDef.rarity}>{RARITY_INFO[selDef.rarity].en}</RarityText>
-                      {selDef.slot && ` · ${SLOT_LABEL[selDef.slot]}`}
+                      {selDef.slot && ` · ${selDef.kind ? WEAPON_KINDS[selDef.kind].ko : SLOT_LABEL[selDef.slot]}`}
                     </div>
                   </div>
                 </div>
                 <p className="small">{selDef.desc}</p>
+                <WeaponKindLine def={selDef} />
                 {selDef.stats && (
                   <>
                     <div className="tiny muted">능력치 (▲▼ 현재 장착 대비)</div>

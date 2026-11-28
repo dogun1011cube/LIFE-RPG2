@@ -1,4 +1,6 @@
 import { getItem, SLOT_LABEL } from '../../data/items';
+import type { AtkType } from '../../data/characters';
+import { ATK_INFO } from '../../data/characters';
 import { getRank, nextRank, RANK_DIFFICULTY, rankRequirement, RANKS } from '../../data/ranks';
 import { STAT_LABEL } from '../../data/subjects';
 import { staminaMax } from '../../game/core';
@@ -85,6 +87,19 @@ export function Status() {
             </div>
             <div className="tiny muted">
               공부 EXP 보너스 <b className="purple-t">+{Math.round(d.expBonus)}%</b> · 골드 보너스 <b className="gold-t">+{d.goldBonus}%</b> · 치명타 피해 ×{d.critDmg}
+            </div>
+            <div className="combat-mods tiny">
+              <span>방어 관통 <b>{Math.round(d.pierce * 100)}%</b></span>
+              <span>흡혈 <b>{d.lifesteal}%</b></span>
+              <span>모든 피해 <b>+{d.dmgPct}%</b></span>
+              <span>스킬 MP 절약 <b>{d.mpSave}%</b></span>
+              {(Object.entries(d.typeDmg) as [AtkType, number][])
+                .filter(([, v]) => v)
+                .map(([t, v]) => (
+                  <span key={t} style={{ color: ATK_INFO[t].color }}>
+                    {ATK_INFO[t].ko} 피해 <b>+{v}%</b>
+                  </span>
+                ))}
             </div>
           </div>
 

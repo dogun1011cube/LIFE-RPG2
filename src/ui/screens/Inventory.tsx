@@ -11,8 +11,10 @@ import { Btn, HeroSprite, ItemIcon, ItemSlot, Modal, PixelIcon, RarityText, Win 
 import { confirmDialog } from '../uiStore';
 import { equippedFor, StatCompare } from './Shop';
 import { SynthesisPanel } from './SynthesisPanel';
+import { WeaponCodex, WeaponKindLine } from '../WeaponInfo';
+import { WEAPON_KINDS } from '../../data/weapons';
 
-type Filter = 'all' | 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'synth';
+type Filter = 'all' | 'equipment' | 'consumable' | 'special' | 'cosmetic' | 'synth' | 'codex';
 
 export function Inventory() {
   const s = useGame();
@@ -21,7 +23,7 @@ export function Inventory() {
   const [chest, setChest] = useState<ChestResult | null>(null);
 
   const entries = s.inventory
-    .filter((e) => filter === 'all' || filter === 'cosmetic' || filter === 'synth' || getItem(e.itemId).category === filter)
+    .filter((e) => filter === 'all' || filter === 'cosmetic' || filter === 'synth' || filter === 'codex' || getItem(e.itemId).category === filter)
     .slice()
     .sort((a, b) => {
       const da = getItem(a.itemId);
@@ -32,7 +34,7 @@ export function Inventory() {
       if (da.category !== db.category) return da.category.localeCompare(db.category);
       return RARITIES.indexOf(db.rarity) - RARITIES.indexOf(da.rarity);
     });
-  const selEntry: InventoryEntry | undefined = s.inventory.find((e) => e.uid === sel) ?? (filter !== 'cosmetic' && filter !== 'synth' ? entries[0] : undefined);
+  const selEntry: InventoryEntry | undefined = s.inventory.find((e) => e.uid === sel) ?? (filter !== 'cosmetic' && filter !== 'synth' && filter !== 'codex' ? entries[0] : undefined);
   const def = selEntry ? getItem(selEntry.itemId) : null;
   const eq = selEntry ? isEquipped(s, selEntry.uid) : false;
   const eqPos = selEntry ? (Object.entries(s.player.equipment).find(([, u]) => u === selEntry.uid)?.[0] as EquipPosition | undefined) : undefined;
@@ -59,6 +61,7 @@ export function Inventory() {
                 ['special', '특수'],
                 ['cosmetic', '외형'],
                 ['synth', '합성'],
+                ['codex', '무기 도감'],
               ] as [Filter, string][]
             ).map(([f, l]) => (
               <button key={f} className={`tab ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>
@@ -68,6 +71,8 @@ export function Inventory() {
           </div>
           {filter === 'synth' ? (
             <SynthesisPanel />
+          ) : filter === 'codex' ? (
+            <WeaponCodex s={s} />
           ) : filter !== 'cosmetic' ? (
             <div className="inv-grid">
               {entries.map((e) => (
@@ -150,12 +155,13 @@ export function Inventory() {
                     </RarityText>
                   </div>
                   <div className="tiny muted">
-                    {RARITY_INFO[def.rarity].en} {def.slot ? `· ${SLOT_LABEL[def.slot]}` : ''} {selEntry.qty > 1 ? `· 보유 ${selEntry.qty}` : ''}
+                    {RARITY_INFO[def.rarity].en} {def.slot ? `· ${def.kind ? WEAPON_KINDS[def.kind].ko : SLOT_LABEL[def.slot]}` : ''} {def.level ? `· 권장 Lv ${def.level}` : ''} {selEntry.qty > 1 ? `· 보유 ${selEntry.qty}` : ''}
                     {eq && <span className="gold-t"> · 장착 중 ({SLOT_LABEL[eqPos!]})</span>}
                   </div>
                 </div>
               </div>
               <p className="small">{def.desc}</p>
+              <WeaponKindLine def={def} />
               {def.stats && <StatCompare stats={scaledStats(def.stats, selEntry.plus)} compare={eq ? undefined : equippedFor(s, def)} />}
               <div className="row wrap">
                 {def.category === 'equipment' &&

@@ -28,12 +28,33 @@ export function lootPool(rarity: Rarity, opts: { gacha?: boolean; maxLevel?: num
   });
 }
 
+/** Group used to balance random picks: equipment slot, or item category. */
+export function pickGroup(i: ItemDef): string {
+  return i.category === 'equipment' && i.slot ? i.slot : i.category;
+}
+
+/**
+ * Weapons come in many kinds, so the weapon group's total weight is capped —
+ * otherwise drops / summons would be almost all weapons. Every other group keeps
+ * one weight per item, exactly as before.
+ */
+export const WEAPON_GROUP_CAP = 8;
+
+/** Weighted random pick from a pool where the weapon group is capped (see WEAPON_GROUP_CAP). */
+export function pickBalanced(rng: Rng, pool: ItemDef[]): ItemDef {
+  const weapons = pool.filter((i) => pickGroup(i) === 'weapon');
+  const others = pool.filter((i) => pickGroup(i) !== 'weapon');
+  if (!weapons.length || !others.length) return pick(rng, pool);
+  const wWeight = Math.min(weapons.length, WEAPON_GROUP_CAP);
+  return rng() * (wWeight + others.length) < wWeight ? pick(rng, weapons) : pick(rng, others);
+}
+
 /** Picks a random item of the given rarity; falls back to lower rarities if the pool is empty. */
 export function rollItemOfRarity(rng: Rng, rarity: Rarity, opts: { gacha?: boolean; maxLevel?: number } = {}): ItemDef {
   let idx = RARITIES.indexOf(rarity);
   while (idx >= 0) {
     const pool = lootPool(RARITIES[idx], opts);
-    if (pool.length) return pick(rng, pool);
+    if (pool.length) return pickBalanced(rng, pool);
     idx--;
   }
   return ITEMS[0];

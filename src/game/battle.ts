@@ -150,6 +150,12 @@ export interface BattlePlayer {
   curse: { pct: number; turns: number } | null;
   poison: { pct: number; turns: number } | null;
   armorBreak: { pct: number; turns: number } | null;
+  /** Equipment combat modifiers (optional for battles created before they existed). */
+  pierce?: number; // fraction of DEF ignored
+  lifesteal?: number; // % of direct damage healed
+  dmgPct?: number; // % all damage
+  typeDmg?: Partial<Record<AtkType, number>>; // % per attack type
+  mpSave?: number; // % skill MP reduction
 }
 
 export interface BattleState {
@@ -228,6 +234,11 @@ export function createBattle(setup: BattleSetup, d: DerivedStats, hp: number, mp
       curse: null,
       poison: null,
       armorBreak: null,
+      pierce: d.pierce ?? 0,
+      lifesteal: d.lifesteal ?? 0,
+      dmgPct: d.dmgPct ?? 0,
+      typeDmg: { ...(d.typeDmg ?? {}) },
+      mpSave: d.mpSave ?? 0,
     },
     turn: 1,
     over: null,
@@ -302,7 +313,7 @@ export function activeSkills(charId: string): CSkill[] {
 
 export function skillState(b: BattleState, sk: CSkill) {
   const cd = b.player.cooldowns[sk.id] || 0;
-  const mp = skillMp(b.player.maxMp, sk);
+  const mp = skillMp(b.player.maxMp, sk, b.player.mpSave ?? 0);
   return { cd, mp, ready: cd <= 0 && b.player.mp >= mp, lackMp: b.player.mp < mp };
 }
 
@@ -312,6 +323,11 @@ function affOf(defId: string, type: AtkType): Aff {
   if (a.resist.includes(type)) return 'resist';
   if (a.weak.includes(type)) return 'weak';
   return null;
+}
+
+/** Equipment damage bonus for an attack type (all-damage % + type %). */
+export function gearDmgMult(p: BattlePlayer, type: AtkType) {
+  return Math.max(0.1, 1 + ((p.dmgPct ?? 0) + (p.typeDmg?.[type] ?? 0)) / 100);
 }
 
 /** Stat the attack type scales with (buffs included). */
@@ -340,9 +356,9 @@ function dealHit(b: BattleState, ev: BattleEvent[], rng: Rng, o: HitOpts): numbe
     return 0;
   }
   const info = ATK_INFO[o.type];
-  const pierce = 1 - (1 - info.pierce) * (1 - (o.pierce || 0));
+  const pierce = Math.min(0.9, 1 - (1 - info.pierce) * (1 - (o.pierce || 0)) * (1 - (p.pierce ?? 0)));
   let dmg = calcDamage(typeStat(p, o.type), monsterDef(m), rng, o.mult, pierce);
-  dmg *= affinityMult(m.defId, o.type);
+  dmg *= affinityMult(m.defId, o.type) * gearDmgMult(p, o.type);
   if (o.undeadBonus && affinityOf(m.defId).undead) dmg *= o.undeadBonus;
   const crit = !!o.guaranteedCrit || rng() * 100 < p.crit + (o.critBonus || 0);
   if (crit) {
@@ -354,6 +370,7 @@ function dealHit(b: BattleState, ev: BattleEvent[], rng: Rng, o: HitOpts): numbe
   b.stats.dmgDealt += dmg;
   b.stats.maxHit = Math.max(b.stats.maxHit, dmg);
   ev.push({ k: 'pAttack', dmg, crit, miss: false, fx: o.fx, mHp: m.hp, hitIndex: o.hitIndex, aff: affOf(m.defId, o.type), type: o.type });
+  if ((p.lifesteal ?? 0) > 0 && p.hp > 0) healPlayer(b, ev, (dmg * (p.lifesteal ?? 0)) / 100);
   return dmg;
 }
 
@@ -370,7 +387,7 @@ function applyDot(b: BattleState, ev: BattleEvent[], kind: 'burn' | 'poison', co
   const m = b.monster;
   if (m.hp <= 0) return;
   const mult = affinityMult(m.defId, type);
-  const d = Math.max(1, Math.round(coef * typeStat(b.player, type) * mult));
+  const d = Math.max(1, Math.round(coef * typeStat(b.player, type) * mult * gearDmgMult(b.player, type)));
   const cur = m[kind];
   if (kind === 'burn') {
     m.burn = { dmg: Math.max(cur?.dmg ?? 0, d), turns: Math.max(cur?.turns ?? 0, turns) };
@@ -387,7 +404,7 @@ function applyDot(b: BattleState, ev: BattleEvent[], kind: 'burn' | 'poison', co
 function useSkill(b: BattleState, ev: BattleEvent[], rng: Rng, skill: CSkill) {
   const p = b.player;
   const m = b.monster;
-  p.mp -= skillMp(p.maxMp, skill);
+  p.mp -= skillMp(p.maxMp, skill, p.mpSave ?? 0);
   p.cooldowns[skill.id] = skill.cd;
   ev.push({ k: 'pMp', pMp: p.mp });
   ev.push({ k: 'text', text: `[${skill.key}] ${skill.name}!`, tone: 'info' });
@@ -505,7 +522,7 @@ export function resolveTurn(input: BattleState, action: PlayerAction, rng: Rng):
       const skill = activeSkills(p.charId).find((x) => x.id === action.skillId);
       if (!skill) return { state: input, events: [{ k: 'text', text: '사용할 수 없는 스킬입니다.', tone: 'bad' }] };
       if ((p.cooldowns[skill.id] || 0) > 0) return { state: input, events: [{ k: 'text', text: `${skill.name}은(는) 아직 재사용 대기 중이다! (${p.cooldowns[skill.id]}턴)`, tone: 'bad' }] };
-      if (p.mp < skillMp(p.maxMp, skill)) return { state: input, events: [{ k: 'text', text: 'MP가 부족하다!', tone: 'bad' }] };
+      if (p.mp < skillMp(p.maxMp, skill, p.mpSave ?? 0)) return { state: input, events: [{ k: 'text', text: 'MP가 부족하다!', tone: 'bad' }] };
       useSkill(b, ev, rng, skill);
       break;
     }

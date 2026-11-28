@@ -1,4 +1,5 @@
 import type { ItemDef, Rarity } from '../game/types';
+import { WEAPONS } from './weapons';
 
 export const RARITY_INFO: Record<Rarity, { ko: string; en: string; color: string; glow: string; value: number }> = {
   common: { ko: '일반', en: 'COMMON', color: '#c3c8d4', glow: 'rgba(195,200,212,.35)', value: 30 },
@@ -12,23 +13,8 @@ export const RARITY_INFO: Record<Rarity, { ko: string; en: string; color: string
 const I = (d: ItemDef) => d;
 
 export const ITEMS: ItemDef[] = [
-  // ───────────── WEAPONS ─────────────
-  I({ id: 'w_wood', name: '견습생의 목검', nameEn: 'Wooden Sword', desc: '모든 모험가가 처음 쥐는 검. 가볍고 정직하다.', category: 'equipment', slot: 'weapon', rarity: 'common', price: 20, stats: { atk: 4 }, icon: 'sword', tint: '#b08050', shop: 'weapons', level: 1, loot: true, gacha: true }),
-  I({ id: 'w_iron', name: '낡은 철검', nameEn: 'Iron Sword', desc: '녹이 조금 슬었지만 슬라임 정도는 가뿐히 벤다.', category: 'equipment', slot: 'weapon', rarity: 'common', price: 70, stats: { atk: 8 }, icon: 'sword', shop: 'weapons', level: 3, loot: true, gacha: true }),
-  I({ id: 'w_staff', name: '수습 마법사의 지팡이', nameEn: 'Apprentice Staff', desc: '마력을 담기 좋은 참나무 지팡이. 마법 스킬이 강해진다.', category: 'equipment', slot: 'weapon', rarity: 'common', price: 70, stats: { atk: 3, matk: 9, mp: 10 }, icon: 'staff', tint: '#b08050', shop: 'weapons', level: 3, loot: true, gacha: true }),
-  I({ id: 'w_steel', name: '강철 브로드소드', nameEn: 'Steel Broadsword', desc: '대장간에서 단단하게 벼려낸 표준 전투용 검.', category: 'equipment', slot: 'weapon', rarity: 'uncommon', price: 240, stats: { atk: 15 }, icon: 'sword', shop: 'weapons', minRank: 'E', level: 7, loot: true, gacha: true }),
-  I({ id: 'w_rapier', name: '샤프심 레이피어', nameEn: 'Graphite Rapier', desc: '0.5mm 샤프심처럼 가늘고 날카롭다. 치명타에 특화.', category: 'equipment', slot: 'weapon', rarity: 'uncommon', price: 260, stats: { atk: 12, crit: 5, dex: 2 }, icon: 'sword', tint: '#868e96', shop: 'weapons', minRank: 'E', level: 8, loot: true, gacha: true }),
-  I({ id: 'w_tome', name: '오답노트 마도서', nameEn: 'Tome of Mistakes', desc: '틀린 문제가 빼곡히 적힌 마도서. 실수에서 힘을 얻는다.', category: 'equipment', slot: 'weapon', rarity: 'uncommon', price: 280, stats: { atk: 6, matk: 18, int: 3 }, icon: 'book', tint: '#e8590c', shop: 'weapons', minRank: 'E', level: 8, loot: true, gacha: true }),
-  I({ id: 'w_flame', name: '화염의 세이버', nameEn: 'Flame Sabre', desc: '연소 반응의 열기를 품은 곡도. 베일 때마다 불꽃이 튄다.', category: 'equipment', slot: 'weapon', rarity: 'rare', price: 780, stats: { atk: 27, str: 3 }, icon: 'sword', tint: '#ff6b35', shop: 'weapons', minRank: 'D', level: 13, loot: true, gacha: true }),
-  I({ id: 'w_periodic', name: '주기율 지팡이', nameEn: 'Periodic Staff', desc: '118개의 원소가 새겨진 지팡이. 원소의 힘을 끌어낸다.', category: 'equipment', slot: 'weapon', rarity: 'rare', price: 820, stats: { atk: 10, matk: 32, int: 5, mp: 20 }, icon: 'staff', tint: '#4dabf7', shop: 'weapons', minRank: 'D', level: 14, loot: true, gacha: true }),
-  I({ id: 'w_calculus', name: '미적분의 칼날', nameEn: 'Calculus Edge', desc: '순간 변화율을 읽어 급소를 찌른다.', category: 'equipment', slot: 'weapon', rarity: 'rare', price: 840, stats: { atk: 24, crit: 8, dex: 3 }, icon: 'sword', tint: '#74c0fc', shop: 'weapons', minRank: 'C', level: 16, loot: true, gacha: true }),
-  I({ id: 'w_newton', name: '뉴턴의 전투망치', nameEn: "Newton's Warhammer", desc: 'F = ma. 질량과 가속도가 곧 파괴력이다.', category: 'equipment', slot: 'weapon', rarity: 'epic', price: 2600, stats: { atk: 50, str: 8 }, icon: 'hammer', tint: '#adb5bd', shop: 'weapons', minRank: 'B', level: 26, loot: true, gacha: true }),
-  I({ id: 'w_avogadro', name: '아보가드로의 성검', nameEn: "Avogadro's Holy Blade", desc: '6.02×10²³의 빛 입자로 이루어진 성검.', category: 'equipment', slot: 'weapon', rarity: 'epic', price: 2800, stats: { atk: 44, matk: 24, int: 6 }, icon: 'sword', tint: '#ffe066', shop: 'weapons', minRank: 'B', level: 28, loot: true, gacha: true }),
-  I({ id: 'w_darkblade', name: '암흑기사의 대검', nameEn: 'Dark Knight Greatsword', desc: '지하묘지의 암흑기사가 쓰던 대검. 상점에서는 팔지 않는다.', category: 'equipment', slot: 'weapon', rarity: 'epic', price: 2400, stats: { atk: 56, def: 6, crit: -2 }, icon: 'sword', tint: '#7048e8', level: 30, loot: true, gacha: true }),
-  I({ id: 'w_aurora', name: '새벽의 성검 오로라', nameEn: 'Aurora, Blade of Dawn', desc: '밤을 새운 자에게만 새벽빛을 허락하는 전설의 검.', category: 'equipment', slot: 'weapon', rarity: 'legendary', price: 9000, stats: { atk: 88, crit: 10, str: 10 }, icon: 'sword', tint: '#ffd8a8', shop: 'weapons', minRank: 'S', level: 45, loot: true, gacha: true }),
-  I({ id: 'w_eureka', name: '유레카의 홀', nameEn: 'Scepter of Eureka', desc: '깨달음의 순간을 응축한 홀. 마법이 폭발적으로 강해진다.', category: 'equipment', slot: 'weapon', rarity: 'legendary', price: 9500, stats: { atk: 30, matk: 96, int: 16, mp: 60 }, icon: 'staff', tint: '#ffc531', level: 48, loot: true, gacha: true }),
-  I({ id: 'w_infinitepen', name: '무한의 펜', nameEn: 'The Infinite Pen', desc: '세상의 모든 답을 써 내려갔다는 신화 속의 펜. 펜은 검보다 강하다.', category: 'equipment', slot: 'weapon', rarity: 'mythic', price: 30000, stats: { atk: 135, matk: 90, str: 10, int: 10, dex: 10, luk: 10, crit: 10 }, icon: 'pen', tint: '#ff4d6d', level: 70, gacha: true }),
-  I({ id: 'w_scythe', name: '사신의 낫', nameEn: "Reaper's Scythe", desc: '4층의 사신을 쓰러뜨린 증표. 죽음을 베어낸 낫.', category: 'equipment', slot: 'weapon', rarity: 'rare', price: 900, stats: { atk: 20, crit: 12, luk: 4 }, icon: 'scythe', tint: '#9775fa', level: 10, unique: true }),
+  // ───────────── WEAPONS (src/data/weapons.ts) ─────────────
+  ...WEAPONS,
 
   // ───────────── HELMETS ─────────────
   I({ id: 'h_leather', name: '가죽 모자', nameEn: 'Leather Cap', desc: '머리를 보호하는 최소한의 장비.', category: 'equipment', slot: 'helmet', rarity: 'common', price: 25, stats: { def: 2, hp: 5 }, icon: 'helmet', tint: '#a0703c', shop: 'armor', level: 1, loot: true, gacha: true }),

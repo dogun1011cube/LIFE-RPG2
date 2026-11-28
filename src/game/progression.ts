@@ -2,6 +2,7 @@ import { getItem } from '../data/items';
 import { getCharacter } from '../data/characters';
 import { computeRank, computeUnlockStage } from '../data/ranks';
 import { STUDY_SECONDS_PER_TRAINING_POINT } from '../data/subjects';
+import { weaponPassive } from '../data/weapons';
 import type { DerivedStats, GameState, RankId, StatBlock, StatKey } from './types';
 import { EQUIP_POSITIONS, STAT_KEYS } from './types';
 
@@ -89,9 +90,16 @@ export function gearStats(state: GameState): StatBlock {
     for (const [k, v] of Object.entries(s) as [keyof StatBlock, number][]) {
       total[k] = (total[k] || 0) + v;
     }
+    // weapon kind passive (fixed, not scaled by upgrades)
+    for (const [k, v] of Object.entries(weaponPassive(def)) as [keyof StatBlock, number][]) {
+      total[k] = (total[k] || 0) + v;
+    }
   }
   return total;
 }
+
+/** Caps for the combat modifiers coming from equipment. */
+export const COMBAT_CAPS = { pierce: 60, lifesteal: 30, mpSave: 50, critDmg: 300 } as const;
 
 export function streakExpBonus(streak: number) {
   return Math.min(20, streak * 2);
@@ -116,10 +124,15 @@ export function deriveStats(state: GameState): DerivedStats {
   const matk = Math.round((ATK_PER_LEVEL * level + int * 2.2 + (gear.matk || 0)) * ch.matk);
   const def = Math.round((2 + dex + str * 0.5 + (gear.def || 0)) * ch.def);
   const crit = Math.min(75, Math.round((3 + dex * 0.15 + luk * 0.2 + (gear.crit || 0) + ch.crit) * 10) / 10);
-  const critDmg = 1.75;
+  const critDmg = Math.round((1.75 + Math.min(COMBAT_CAPS.critDmg, Math.max(0, gear.critDmg || 0)) / 100) * 100) / 100;
   const expBonus = (gear.expBonus || 0) + streakExpBonus(state.streak.current);
   const goldBonus = Math.round((luk * 0.3 + (gear.goldBonus || 0)) * 10) / 10;
-  return { level, str, int, dex, luk, maxHp, maxMp, atk, matk, def, crit, critDmg, expBonus, goldBonus, base, training, gear };
+  const pierce = Math.min(COMBAT_CAPS.pierce, Math.max(0, gear.pierce || 0)) / 100;
+  const lifesteal = Math.min(COMBAT_CAPS.lifesteal, Math.max(0, gear.lifesteal || 0));
+  const mpSave = Math.min(COMBAT_CAPS.mpSave, Math.max(0, gear.mpSave || 0));
+  const dmgPct = gear.dmg || 0;
+  const typeDmg = { phys: gear.physDmg || 0, magic: gear.magicDmg || 0, fire: gear.fireDmg || 0, poison: gear.poisonDmg || 0, holy: gear.holyDmg || 0 };
+  return { level, str, int, dex, luk, maxHp, maxMp, atk, matk, def, crit, critDmg, expBonus, goldBonus, pierce, lifesteal, dmgPct, typeDmg, mpSave, base, training, gear };
 }
 
 export function bossCount(state: GameState) {
