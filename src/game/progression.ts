@@ -1,4 +1,5 @@
 import { getItem } from '../data/items';
+import { getCharacter } from '../data/characters';
 import { computeRank, computeUnlockStage } from '../data/ranks';
 import { STUDY_SECONDS_PER_TRAINING_POINT } from '../data/subjects';
 import type { DerivedStats, GameState, RankId, StatBlock, StatKey } from './types';
@@ -106,14 +107,15 @@ export function deriveStats(state: GameState): DerivedStats {
   const int = stat('int');
   const dex = stat('dex');
   const luk = stat('luk');
-  const maxHp = Math.round(90 + level * 10 + str * 3 + (gear.hp || 0));
+  const ch = getCharacter(state.player.activeCharacter).mods;
+  const maxHp = Math.round((90 + level * 10 + str * 3 + (gear.hp || 0)) * ch.hp);
   const maxMp = Math.round(15 + level * 2 + int * 1.2 + (gear.mp || 0));
   // Attack grows in proportion to level: every level adds +10 ATK / +10 MATK,
   // on top of STR/INT and equipment.
-  const atk = Math.round(ATK_PER_LEVEL * level + str * 2 + (gear.atk || 0));
-  const matk = Math.round(ATK_PER_LEVEL * level + int * 2.2 + (gear.matk || 0));
-  const def = Math.round(2 + dex + str * 0.5 + (gear.def || 0));
-  const crit = Math.min(75, Math.round((3 + dex * 0.15 + luk * 0.2 + (gear.crit || 0)) * 10) / 10);
+  const atk = Math.round((ATK_PER_LEVEL * level + str * 2 + (gear.atk || 0)) * ch.atk);
+  const matk = Math.round((ATK_PER_LEVEL * level + int * 2.2 + (gear.matk || 0)) * ch.matk);
+  const def = Math.round((2 + dex + str * 0.5 + (gear.def || 0)) * ch.def);
+  const crit = Math.min(75, Math.round((3 + dex * 0.15 + luk * 0.2 + (gear.crit || 0) + ch.crit) * 10) / 10);
   const critDmg = 1.75;
   const expBonus = (gear.expBonus || 0) + streakExpBonus(state.streak.current);
   const goldBonus = Math.round((luk * 0.3 + (gear.goldBonus || 0)) * 10) / 10;

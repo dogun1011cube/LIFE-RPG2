@@ -1,6 +1,5 @@
 import { getItem, SLOT_LABEL } from '../../data/items';
 import { getRank, nextRank, RANK_DIFFICULTY, rankRequirement, RANKS } from '../../data/ranks';
-import { SKILLS } from '../../data/skills';
 import { STAT_LABEL } from '../../data/subjects';
 import { staminaMax } from '../../game/core';
 import { bossCount, currentRank, deriveStats, levelProgress, unlockStage } from '../../game/progression';
@@ -10,6 +9,7 @@ import { useGame } from '../../store/store';
 import { Bar, HeroSprite, ItemSlot, PixelIcon, RankBadge, Win } from '../components';
 import { heroTitle } from '../heroLook';
 import { go } from '../uiStore';
+import { CharacterDetail, CharacterPicker } from '../CharacterPanel';
 
 const SLOT_ICON: Record<string, string> = { weapon: 'sword', helmet: 'helmet', armor: 'armor', gloves: 'gloves', boots: 'boots', acc1: 'ring', acc2: 'amulet' };
 
@@ -200,19 +200,10 @@ export function Status() {
           </div>
         </Win>
 
-        <Win title="SKILLS" sub="스킬">
-          <div className="col" style={{ gap: 6 }}>
-            {SKILLS.map((sk) => {
-              const on = sk.level <= lp.level;
-              return (
-                <div key={sk.id} className={`skill-row ${on ? '' : 'locked'}`}>
-                  <b>{on ? sk.name : '???'}</b>
-                  <span className="tiny muted grow">{on ? sk.desc : `Lv ${sk.level}에 습득`}</span>
-                  <span className="tiny blue-t">MP {sk.mp}</span>
-                </div>
-              );
-            })}
-          </div>
+        <Win title="CHARACTER" sub="출전 캐릭터 · 스킬 (Q W E R)">
+          <CharacterPicker />
+          <div className="sep" />
+          <CharacterDetail state={s} />
         </Win>
       </div>
     </div>

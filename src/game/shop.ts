@@ -62,18 +62,32 @@ function rollRarity(ctx: Ctx): Rarity {
   return weighted(ctx.rng, GACHA.rates);
 }
 
+/** Gacha characters (item ids) the player does not own yet. */
+export function unownedCharacterItems(s: GameState): ItemDef[] {
+  return ITEMS.filter((i) => i.category === 'character' && i.character && !s.ownedCharacters.includes(i.character));
+}
+
 /** One gacha roll (pity, history, item grant). Does not charge gold. */
 function rollOnce(s: GameState, ctx: Ctx, forceRare: boolean): GachaResult {
-  let rarity = rollRarity(ctx);
+  let item: ItemDef | null = null;
   let pity = false;
-  if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
-    rarity = 'legendary';
-    pity = true;
+  // character summon: independent small chance, with its own hard pity
+  const unowned = unownedCharacterItems(s);
+  if (unowned.length && (s.gacha.charPity + 1 >= GACHA.charPity || ctx.rng() * 100 < GACHA.charRate)) {
+    item = pick(ctx.rng, unowned);
+    s.gacha.charPity = 0;
+  } else {
+    if (unowned.length) s.gacha.charPity += 1;
+    let rarity = rollRarity(ctx);
+    if (s.gacha.pity + 1 >= GACHA.pity && RARITIES.indexOf(rarity) < RARITIES.indexOf('legendary')) {
+      rarity = 'legendary';
+      pity = true;
+    }
+    if (forceRare && RARITIES.indexOf(rarity) < 2) rarity = 'rare';
+    item = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
   }
-  if (forceRare && RARITIES.indexOf(rarity) < 2) rarity = 'rare';
-  if (RARITIES.indexOf(rarity) >= RARITIES.indexOf('legendary')) s.gacha.pity = 0;
+  if (RARITIES.indexOf(item.rarity) >= RARITIES.indexOf('legendary')) s.gacha.pity = 0;
   else s.gacha.pity += 1;
-  const item = rollItemOfRarity(ctx.rng, rarity, { gacha: true });
   const res = addItem(s, item.id, 1, ctx, false);
   const rec: GachaRecord = { at: ctx.now, itemId: item.id, rarity: item.rarity, converted: res.converted };
   s.gacha.history.unshift(rec);
@@ -132,7 +146,7 @@ export function autoGacha(s: GameState, ctx: Ctx, opts: AutoGachaOptions): AutoG
     spent += GACHA.auto;
     const r = rollOnce(s, ctx, false);
     results.push(r);
-    if (RARITIES.indexOf(r.rarity) >= target) {
+    if (RARITIES.indexOf(r.rarity) >= target || getItem(r.itemId).category === 'character') {
       stopReason = 'target';
       break;
     }

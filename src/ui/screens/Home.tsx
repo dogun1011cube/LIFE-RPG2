@@ -7,7 +7,7 @@ import { fmtClock, fmtDuration, todaySeconds, todaySubjects, totalSeconds } from
 import { floorInfo } from '../../game/tower';
 import { act, useGame } from '../../store/store';
 import { Bar, Btn, PixelIcon, RankBadge, Ticker, Win } from '../components';
-import { heroAura, heroPalette, heroTitle } from '../heroLook';
+import { heroAura, heroPalette, heroSprite, heroTitle } from '../heroLook';
 import { Stage } from '../Stage';
 import { go, setUI } from '../uiStore';
 
@@ -17,6 +17,8 @@ const TIPS = [
   '같은 과목을 2시간 공부할 때마다 해당 능력치가 영구히 1 오른다.',
   '공부하면 HP와 MP도 회복된다. (1분 = 1%)',
   '자정이 지나도 하루는 끝나지 않는다. 잠들고 일어날 때 새 RPG 하루가 시작된다.',
+  '캐릭터는 5명, 공격 유형도 5가지! 몬스터의 약점에 맞는 캐릭터를 출전시키면 피해가 30% 늘어난다.',
+  '전투 중 Q·W·E·R 키로 스킬을 바로 쓸 수 있다. 쿨타임과 MP를 잘 관리하자.',
   '몬스터는 HP가 절반이 되면 궁극기를 예고한다. 예고가 뜨면 다음 턴에 방어하라!',
   '아이템을 우클릭하면 잠긴다. 잠긴 아이템은 모두 판매·합성에서 보호된다.',
   '레벨 상한은 없다. 레벨마다 공격력이 10씩 오른다.',
@@ -62,7 +64,7 @@ export function Home() {
     <div className="home">
       <div className="home-left">
       <Win className="home-stage" color="gold">
-        <Stage bg="town" heroPalette={heroPalette(s)} aura={heroAura(s)} monster={s.tower.highestCleared < 1 ? 'slime_green' : null} />
+        <Stage bg="town" heroSprite={heroSprite(s)} heroPalette={heroPalette(s)} aura={heroAura(s)} monster={s.tower.highestCleared < 1 ? 'slime_green' : null} />
         <div className="stage-overlay">
           <div className="stage-name">
             <RankBadge rank={rank} size="lg" />

@@ -10,7 +10,9 @@ export interface SpriteDef {
   palette: Record<string, string>;
 }
 
-export const SPRITES: Record<SpriteId | 'hero' | 'crown', SpriteDef> = {
+export type HeroSpriteId = 'hero' | 'hero_mage' | 'hero_fire' | 'hero_poison' | 'hero_holy';
+
+export const SPRITES: Record<SpriteId | HeroSpriteId | 'crown', SpriteDef> = {
   slime: {
     rows: [
       '................',
@@ -277,6 +279,90 @@ export const SPRITES: Record<SpriteId | 'hero' | 'crown', SpriteDef> = {
       '................',
     ],
     palette: { h: '#3b2414', s: '#ffd8a8', e: '#14141f', c: '#2c3e75', a: '#8d99ae', A: '#5c677d', l: '#364fc7', b: '#5c3d2e', m: '#dee2e6', g: '#ffd43b' },
+  },
+  hero_mage: {
+    rows: [
+      '.......h........',
+      '......hhh.......',
+      '.....hhhhh...o..',
+      '...hhhhhhhhh.oo.',
+      '.....hsssseh.m..',
+      '.....ssssss..m..',
+      '....aaaaaaaa.m..',
+      '...caaaAaaaa.m..',
+      '...caaaAaaaasm..',
+      '...caaaaaaaa.m..',
+      '...caaaaaaaa.m..',
+      '....aaaaaaaa.m..',
+      '....aaAaaAaa.m..',
+      '....aaaaaaaa.m..',
+      '....bb....bb.m..',
+      '................',
+    ],
+    palette: { h: '#3b5bdb', s: '#ffd8a8', e: '#14141f', c: '#1c3a8a', a: '#4c6ef5', A: '#364fc7', m: '#8d6e63', o: '#74c0fc', b: '#2b3a8a' },
+  },
+  hero_fire: {
+    rows: [
+      '....h.hh.h......',
+      '...hhhhhhhh...y.',
+      '...hhhhhhhhh.yfy',
+      '...hhssseehh..f.',
+      '....ssssss....m.',
+      '.....sss......m.',
+      '...ccaaaaaa...m.',
+      '..ccaaAaaaaa..m.',
+      '..ccaaAAaaass.m.',
+      '..cccaaaaaa...m.',
+      '..ccc.aaaa....m.',
+      '......llll....m.',
+      '......ll.ll...m.',
+      '......ll.ll.....',
+      '.....bbb.bbb....',
+      '................',
+    ],
+    palette: { h: '#e8590c', s: '#ffd8a8', e: '#14141f', c: '#a51111', a: '#e03131', A: '#862e2e', m: '#8d6e63', f: '#ff922b', y: '#ffe066', l: '#7c2d12', b: '#3b2414' },
+  },
+  hero_poison: {
+    rows: [
+      '.....hhhhh......',
+      '....hhhhhhh.....',
+      '...hhhhhhhhh....',
+      '...hhsssseh.....',
+      '...hhssssss.....',
+      '....hhsssh..v...',
+      '...hcaaaaah.vgv.',
+      '..ccaaAaaaaavvv.',
+      '..ccaaAaaaass...',
+      '..ccaaaaaaa.....',
+      '..cccaaaaaa.....',
+      '..ccc.llll......',
+      '......ll.ll.....',
+      '......ll.ll.....',
+      '.....bbb.bbb....',
+      '................',
+    ],
+    palette: { h: '#2b8a3e', s: '#ffd8a8', e: '#14141f', c: '#1b4d2b', a: '#37b24d', A: '#2f9e44', v: '#94d82d', g: '#ffd43b', l: '#2b3a1b', b: '#3b2414' },
+  },
+  hero_holy: {
+    rows: [
+      '.....gggggg.....',
+      '.....g....g.....',
+      '.....hhhhhh.....',
+      '....hhhhhhhh..m.',
+      '....hhsssseh..m.',
+      '.....ssssss..mmm',
+      '...ccaaaaaa...m.',
+      '..ccaaAaaaaa..m.',
+      '..ccaaAAaaass.m.',
+      '..cccaaaaaa...m.',
+      '..cccaaaaaa...m.',
+      '..ccc.aaaa....m.',
+      '......aaaa....m.',
+      '......aa.aa...m.',
+      '.....bbb.bbb....',
+      '................',
+    ],
+    palette: { g: '#ffe066', h: '#ffd43b', s: '#ffd8a8', e: '#14141f', c: '#f8f9fa', a: '#f1f3f5', A: '#e9c46a', m: '#ffd43b', b: '#e9c46a' },
   },
   crown: {
     rows: [

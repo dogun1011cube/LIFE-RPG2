@@ -2,7 +2,6 @@ import { produce } from 'immer';
 import { useSyncExternalStore } from 'react';
 import { getItem } from '../data/items';
 import { rankIndex, RANKS } from '../data/ranks';
-import { SKILLS } from '../data/skills';
 import type { Ctx } from '../game/core';
 import { addItem, clampVitals, fullHeal, GameError, gainGold, makeCtx } from '../game/core';
 import { currentRank, deriveStats, levelFromExp, unlockStage } from '../game/progression';
@@ -142,7 +141,6 @@ function postProcess(before: GameState, d: GameState, ctx: Ctx) {
         addItem(d, 'chest_bronze', 1, ctx, false);
         rewards.push(`Lv ${L} 달성 보상: 청동 보물상자`);
       }
-      for (const sk of SKILLS) if (sk.level === L) rewards.push(`새 스킬 습득: ${sk.name}`);
     }
     const g = gainGold(d, gold);
     rewards.unshift(`레벨업 보상: +${g} G`, 'HP·MP 완전 회복');

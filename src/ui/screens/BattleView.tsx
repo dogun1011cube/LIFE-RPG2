@@ -2,21 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { playSfx } from '../../audio/sfx';
 import { getItem } from '../../data/items';
 import { getMonster } from '../../data/monsters';
-import { SKILLS } from '../../data/skills';
+import { ATK_INFO, affinityOf, getCharacter, SKILL_KEYS } from '../../data/characters';
 import type { BattleEvent, BattleSetup, BattleState, PlayerAction } from '../../game/battle';
-import { availableSkills, createBattle, resolveTurn } from '../../game/battle';
+import { activeSkills, createBattle, resolveTurn, skillState } from '../../game/battle';
 import { removeEntry } from '../../game/core';
 import type { BattleResult } from '../../game/encounters';
 import { finishBattle, startFieldBattle, startTowerBattle } from '../../game/encounters';
 import { deriveStats } from '../../game/progression';
 import { floorAccess } from '../../game/tower';
-import { BattleScene } from '../../render/BattleScene';
+import { BattleScene, MELEE_FX } from '../../render/BattleScene';
 import { act, getState, useGame } from '../../store/store';
 import { Bar, Btn, ItemIcon, PixelIcon, RarityText } from '../components';
-import { heroAura, heroPalette } from '../heroLook';
+import { heroAura, heroPalette, heroSprite } from '../heroLook';
 import { go, setUI } from '../uiStore';
 
-type Menu = 'main' | 'skill' | 'item';
+type Menu = 'main' | 'item';
 
 interface LogLine {
   id: number;
@@ -32,7 +32,7 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
   const battleRef = useRef<BattleState | null>(null);
   const [battle, setBattle] = useState<BattleState>(() => {
     const st = getState();
-    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold);
+    const b = createBattle(setup, deriveStats(st), st.player.hp, st.player.mp, st.player.gold, st.player.activeCharacter);
     battleRef.current = b;
     return b;
   });
@@ -66,7 +66,7 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
     scene.reduceMotion = st.settings.reduceMotion;
     scene.speed = speed;
     scene.setBackground(setup.bg);
-    scene.setHero(heroPalette(st), heroAura(st));
+    scene.setHero(heroSprite(st), heroPalette(st), heroAura(st));
     scene.setMonster(battle.monster, true);
     playSfx('door');
     const first = battle.monster;
@@ -101,20 +101,26 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
         pushLog(ev.text, ev.tone);
         return;
       case 'pAttack': {
-        const melee = ev.fx === 'slash' || ev.fx === 'insight' || ev.fx === 'gravity';
+        const melee = MELEE_FX.includes(ev.fx);
         later(melee ? (ev.hitIndex === 0 ? 150 : 0) : 260, () => {
           if (ev.miss) playSfx('miss');
           else {
-            playSfx(ev.crit ? 'crit' : melee ? 'sword' : 'magic');
+            playSfx(ev.crit ? 'crit' : melee ? 'sword' : ev.type === 'holy' ? 'heal' : 'magic');
             setTimeout(() => playSfx(getMonster(battleRef.current!.monster.defId).family === 'slime' ? 'slime' : 'hit'), 60);
             setMHp(ev.mHp);
           }
         });
-        if (!ev.miss) pushLog(`${ev.crit ? '치명타! ' : ''}${ev.dmg} 피해!`, ev.crit ? 'crit' : 'good');
+        if (!ev.miss) pushLog(`${ev.crit ? '치명타! ' : ''}${ev.dmg} 피해!${ev.aff === 'weak' ? ' (약점!)' : ev.aff === 'resist' ? ' (내성)' : ev.aff === 'immune' ? ' (면역에 가까움)' : ''}`, ev.crit ? 'crit' : 'good');
         else pushLog('공격이 빗나갔다!', 'info');
         await scene.play(ev);
         return;
       }
+      case 'mDot':
+        playSfx('hit');
+        setMHp(ev.mHp);
+        pushLog(`${ev.kind === 'burn' ? '화상' : '중독'} 피해 ${ev.dmg}!`, 'good');
+        await scene.play(ev);
+        return;
       case 'pHeal':
         playSfx('heal');
         setPHp(ev.pHp);
@@ -247,11 +253,17 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
       if (result || busy) return;
       if (e.key === 'Escape') setMenu('main');
       if (menu !== 'main') return;
+      const k = e.key.toUpperCase();
+      const cur = battleRef.current;
+      if ((SKILL_KEYS as string[]).includes(k) && cur) {
+        const sk = activeSkills(cur.player.charId).find((x) => x.key === k);
+        if (sk && skillState(cur, sk).ready) void doAction({ type: 'skill', skillId: sk.id });
+        return;
+      }
       if (e.key === '1') void doAction({ type: 'attack' });
-      if (e.key === '2') setMenu('skill');
-      if (e.key === '3') setMenu('item');
-      if (e.key === '4') void doAction({ type: 'defend' });
-      if (e.key === '5') void doAction({ type: 'escape' });
+      if (e.key === '2') setMenu('item');
+      if (e.key === '3') void doAction({ type: 'defend' });
+      if (e.key === '4' && (setup.canEscape || def.family === 'dummy')) void doAction({ type: 'escape' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -269,7 +281,9 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
   };
 
   const def = getMonster(mon.defId);
-  const skills = availableSkills(battle.player.level);
+  const ch = getCharacter(battle.player.charId);
+  const skills = ch.skills;
+  const aff = affinityOf(mon.defId);
   const items = s.inventory.filter((e) => getItem(e.itemId).battle);
   const isBoss = mon.boss;
   const p = battle.player;
@@ -298,6 +312,29 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
             {mon.elite && !isBoss && <span className="tag" style={{ background: 'var(--orange)' }}>ELITE</span>}
           </div>
           <Bar kind={isBoss ? 'boss' : 'hp'} value={mHp} max={mon.maxHp} size="tall" label={`${mHp.toLocaleString()} / ${mon.maxHp.toLocaleString()}`} />
+          <div className="aff-row tiny">
+            {aff.weak.map((t) => (
+              <span key={'w' + t} className="aff weak" style={{ ['--tc' as string]: ATK_INFO[t].color } as React.CSSProperties}>
+                약점 {ATK_INFO[t].ko}
+              </span>
+            ))}
+            {aff.resist.map((t) => (
+              <span key={'r' + t} className="aff resist">
+                내성 {ATK_INFO[t].ko}
+              </span>
+            ))}
+            {aff.immune.map((t) => (
+              <span key={'i' + t} className="aff immune">
+                면역 {ATK_INFO[t].ko}
+              </span>
+            ))}
+          </div>
+          {(battle.monster.burn || battle.monster.poison) && (
+            <div className="aff-row tiny">
+              {battle.monster.burn && <span className="aff dot-burn">화상 {battle.monster.burn.dmg}/턴 ({battle.monster.burn.turns})</span>}
+              {battle.monster.poison && <span className="aff dot-poison">중독 {battle.monster.poison.dmg}/턴 ({battle.monster.poison.turns})</span>}
+            </div>
+          )}
           {setup.waves.length > 1 && <div className="tiny muted">WAVE {battle.wave + 1} / {setup.waves.length}</div>}
         </div>
         {(counters.doom !== null || counters.death !== null) && (
@@ -352,40 +389,54 @@ export function BattleView({ setup }: { setup: BattleSetup }) {
         </div>
         <div className="bv-cmd win gold">
           {menu === 'main' && (
-            <div className="cmd-grid">
-              <CmdBtn n={1} label="ATTACK" ko="공격" icon="sword" tint="#dee2e6" disabled={busy} onClick={() => doAction({ type: 'attack' })} />
-              <CmdBtn n={2} label="SKILL" ko="스킬" icon="star" tint="#74c0fc" disabled={busy} onClick={() => setMenu('skill')} />
-              <CmdBtn n={3} label="ITEM" ko="아이템" icon="potion" tint="#ff6b6b" disabled={busy} onClick={() => setMenu('item')} />
-              <CmdBtn n={4} label="DEFEND" ko="방어" icon="armor" tint="#a5d8ff" disabled={busy} onClick={() => doAction({ type: 'defend' })} />
-              <CmdBtn
-                n={5}
-                label={def.family === 'dummy' ? 'FINISH' : 'ESCAPE'}
-                ko={def.family === 'dummy' ? '훈련 종료' : setup.canEscape ? '도망' : '도망 불가'}
-                icon="boots"
-                tint="#e9c46a"
-                disabled={busy || (!setup.canEscape && def.family !== 'dummy')}
-                onClick={() => doAction({ type: 'escape' })}
-              />
-            </div>
-          )}
-          {menu === 'skill' && (
-            <div className="sub-menu">
-              {skills.map((sk) => (
-                <button key={sk.id} className="sub-item" disabled={busy || pMp < sk.mp} onClick={() => doAction({ type: 'skill', skillId: sk.id })}>
-                  <b>{sk.name}</b>
-                  <span className="tiny muted grow">{sk.desc}</span>
-                  <span className="tiny blue-t">MP {sk.mp}</span>
-                </button>
-              ))}
-              {SKILLS.filter((x) => x.level > p.level).slice(0, 1).map((x) => (
-                <div key={x.id} className="tiny dim" style={{ padding: 4 }}>
-                  다음 스킬: Lv {x.level}
-                </div>
-              ))}
-              <button className="btn ghost sm" onClick={() => setMenu('main')}>
-                ◀ 뒤로 (Esc)
-              </button>
-            </div>
+            <>
+              <div className="cmd-head tiny">
+                <span style={{ color: ch.color }}>
+                  <b>{ch.title}</b> {ch.name}
+                </span>
+                <span className="muted">
+                  {ATK_INFO[ch.type].ko} 유형
+                </span>
+              </div>
+              <div className="skill-bar">
+                {skills.map((sk) => {
+                  const st = skillState(battle, sk);
+                  return (
+                    <button
+                      key={sk.id}
+                      className={`skill-btn ${st.ready ? '' : 'off'}`}
+                      style={{ ['--tc' as string]: ch.color } as React.CSSProperties}
+                      disabled={busy || !st.ready}
+                      title={`${sk.desc}\nMP ${st.mp} · 쿨타임 ${sk.cd}턴`}
+                      onClick={() => {
+                        playSfx('select');
+                        void doAction({ type: 'skill', skillId: sk.id });
+                      }}
+                    >
+                      <span className="sk-key">{sk.key}</span>
+                      <span className="sk-name">{sk.name}</span>
+                      <span className="sk-meta tiny">
+                        {st.cd > 0 ? <b className="red-t">쿨 {st.cd}</b> : st.lackMp ? <b className="red-t">MP 부족</b> : <span className="blue-t">MP {st.mp}</span>}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="cmd-row">
+                <CmdBtn n={1} label="ATTACK" ko="기본 공격" icon="sword" tint={ATK_INFO[ch.type].color} disabled={busy} onClick={() => doAction({ type: 'attack' })} />
+                <CmdBtn n={2} label="ITEM" ko="아이템" icon="potion" tint="#ff6b6b" disabled={busy} onClick={() => setMenu('item')} />
+                <CmdBtn n={3} label="DEFEND" ko="방어" icon="armor" tint="#a5d8ff" disabled={busy} onClick={() => doAction({ type: 'defend' })} />
+                <CmdBtn
+                  n={4}
+                  label={def.family === 'dummy' ? 'FINISH' : 'ESCAPE'}
+                  ko={def.family === 'dummy' ? '훈련 종료' : setup.canEscape ? '도망' : '도망 불가'}
+                  icon="boots"
+                  tint="#e9c46a"
+                  disabled={busy || (!setup.canEscape && def.family !== 'dummy')}
+                  onClick={() => doAction({ type: 'escape' })}
+                />
+              </div>
+            </>
           )}
           {menu === 'item' && (
             <div className="sub-menu">

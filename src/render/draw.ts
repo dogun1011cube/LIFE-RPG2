@@ -1,5 +1,6 @@
 import { getMonster } from '../data/monsters';
 import type { SpriteId } from '../data/monsters';
+import type { HeroSpriteId } from './sprites';
 import { ICON_ALIAS, ICONS, SPRITES } from './sprites';
 
 export function hexToRgb(hex: string): [number, number, number] {
@@ -53,7 +54,7 @@ export function gridCanvas(rows: string[], palette: Record<string, string>, key:
   return c;
 }
 
-export function spriteCanvas(id: SpriteId | 'hero' | 'crown', overrides: Record<string, string> = {}): HTMLCanvasElement {
+export function spriteCanvas(id: SpriteId | HeroSpriteId | 'crown', overrides: Record<string, string> = {}): HTMLCanvasElement {
   const def = SPRITES[id];
   const pal = { ...def.palette, ...overrides };
   const key = 'spr:' + id + ':' + JSON.stringify(overrides);
